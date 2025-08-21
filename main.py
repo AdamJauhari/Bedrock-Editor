@@ -136,7 +136,10 @@ class NBTEditor(QMainWindow):
         if os.path.exists(level_dat):
             self.nbt_file = level_dat
             try:
-                nbt_obj = nbtlib.load(level_dat, gzipped=True)
+                try:
+                    nbt_obj = nbtlib.load(level_dat)
+                except Exception:
+                    nbt_obj = nbtlib.load(level_dat, gzipped=True)
                 self.nbt_data = nbt_obj.root
                 self.tree.clear()
                 self.populate_tree(self.nbt_data, self.tree.invisibleRootItem())
@@ -144,9 +147,8 @@ class NBTEditor(QMainWindow):
                 msg = QMessageBox(self)
                 msg.setIcon(QMessageBox.Critical)
                 msg.setWindowTitle("Error")
-                msg.setText(f"Gagal membuka level.dat:")
-                msg.setInformativeText(str(e))
-                msg.setStyleSheet("QLabel{color:#ff4444;font-size:14px;} QPushButton{color:#23272e;background:#ff4444;font-weight:bold;}")
+                msg.setText(f"Gagal membuka level.dat: {e}")
+                msg.setStyleSheet("QLabel{color:#ff4444;font-size:15px;} QPushButton{color:#23272e;background:#ff4444;font-weight:bold;}")
                 msg.exec_()
 
     def open_file(self):
@@ -185,9 +187,8 @@ class NBTEditor(QMainWindow):
                 msg = QMessageBox(self)
                 msg.setIcon(QMessageBox.Critical)
                 msg.setWindowTitle("Error")
-                msg.setText(f"Gagal membuka file:")
-                msg.setInformativeText(str(e))
-                msg.setStyleSheet("QLabel{color:#ff4444;font-size:14px;} QPushButton{color:#23272e;background:#ff4444;font-weight:bold;}")
+                msg.setText(f"Gagal membuka file: {e}")
+                msg.setStyleSheet("QLabel{color:#ff4444;font-size:15px;} QPushButton{color:#23272e;background:#ff4444;font-weight:bold;}")
                 msg.exec_()
 
     def save_file(self):
@@ -199,9 +200,8 @@ class NBTEditor(QMainWindow):
                 msg = QMessageBox(self)
                 msg.setIcon(QMessageBox.Critical)
                 msg.setWindowTitle("Error")
-                msg.setText(f"Gagal menyimpan file:")
-                msg.setInformativeText(str(e))
-                msg.setStyleSheet("QLabel{color:#ff4444;font-size:14px;} QPushButton{color:#23272e;background:#ff4444;font-weight:bold;}")
+                msg.setText(f"Gagal menyimpan file: {e}")
+                msg.setStyleSheet("QLabel{color:#ff4444;font-size:15px;} QPushButton{color:#23272e;background:#ff4444;font-weight:bold;}")
                 msg.exec_()
 
     def populate_tree(self, nbt_node, parent_item):
