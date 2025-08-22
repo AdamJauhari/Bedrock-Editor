@@ -127,8 +127,6 @@ class NBTEditor(QMainWindow):
             else:
                 return nbt
         except Exception:
-            return str(nbt)
-        except Exception:
             # Fallback to string representation if conversion fails
             return str(nbt)
     
@@ -153,6 +151,10 @@ class NBTEditor(QMainWindow):
                 'LevelName': ('string', r'LevelName'),
                 'baseGameVersion': ('string', r'baseGameVersion'),
                 'prid': ('string', r'prid'),
+                
+                # Additional fields from the correct structure
+                'HasUncompleteWorldFileOnDisk': ('byte', r'HasUncompleteWorldFileOnDisk'),
+                'locatorbar': ('byte', r'locatorbar'),
                 
                 # Byte fields (0 atau 1)
                 'CenterMapsToOrigin': ('byte', r'CenterMapsToOrigin'),
@@ -292,8 +294,14 @@ class NBTEditor(QMainWindow):
                         compound_data = self._try_parse_compound_at(data, value_pos)
                         if compound_data:
                             result[compound_name] = compound_data
-                    except Exception:
+                            print(f"✅ Parsed compound: {compound_name}")
+                    except Exception as e:
+                        print(f"❌ Failed to parse compound {compound_name}: {e}")
                         continue
+            
+            # Disable problematic auto-detection for now
+            # Focus on reliable parsing with known libraries
+            print("ℹ️ Using reliable NBT parsing only")
             
             print(f"Hybrid parser extracted {len(result)} fields from level.dat")
             return result
@@ -533,48 +541,329 @@ class NBTEditor(QMainWindow):
                 except:
                     pass
             
-            # Coba parse sebagai simple compound dengan beberapa fields
+            # Coba parse sebagai compound dengan fields yang benar
             result_dict = {}
             
-            # Look for common ability fields
-            abilities_fields = ['attackmobs', 'attackplayers', 'build', 'doorsandswitches', 
-                              'flying', 'instabuild', 'invulnerable', 'lightning', 'mayfly', 
-                              'mine', 'op', 'opencontainers', 'teleport']
+            # Look for abilities fields based on correct structure
+            abilities_fields = {
+                'attackmobs': 'byte',
+                'attackplayers': 'byte', 
+                'build': 'byte',
+                'doorsandswitches': 'byte',
+                'flying': 'byte',
+                'instabuild': 'byte',
+                'invulnerable': 'byte',
+                'lightning': 'byte',
+                'mayfly': 'byte',
+                'mine': 'byte',
+                'op': 'byte',
+                'opencontainers': 'byte',
+                'teleport': 'byte',
+                'flySpeed': 'float',
+                'walkSpeed': 'float',
+                'verticalFlySpeed': 'float'
+            }
             
-            for field in abilities_fields:
+            # Look for experiments fields
+            experiments_fields = {
+                'data_driven_biomes': 'byte',
+                'experiments_ever_used': 'byte',
+                'gametest': 'byte',
+                'jigsaw_structures': 'byte',
+                'saved_with_toggled_experiments': 'byte'
+            }
+            
+            # Search for fields in the compound
+            search_range = min(pos + 500, len(data))  # Look in a reasonable range
+            
+            for field, field_type in abilities_fields.items():
                 field_bytes = field.encode('utf-8')
-                field_pos = data.find(field_bytes, pos, pos + 200)  # Look in nearby range
+                field_pos = data.find(field_bytes, pos, search_range)
                 if field_pos > 0:
                     value_pos = field_pos + len(field_bytes)
-                    # Try to get byte value
-                    for offset in [0, 1, 2, 3]:
-                        if value_pos + offset < len(data):
-                            value = data[value_pos + offset]
-                            if value in [0, 1]:
-                                result_dict[field] = value
-                                break
-            
-            # Look for float fields in abilities
-            float_fields = ['flySpeed', 'walkSpeed', 'verticalFlySpeed']
-            for field in float_fields:
-                field_bytes = field.encode('utf-8')
-                field_pos = data.find(field_bytes, pos, pos + 200)
-                if field_pos > 0:
-                    value_pos = field_pos + len(field_bytes)
-                    for offset in [0, 1, 2, 3, 4]:
-                        if value_pos + offset + 4 <= len(data):
-                            try:
-                                value = struct.unpack('<f', data[value_pos+offset:value_pos+offset+4])[0]
-                                if not (value != value):  # Not NaN
+                    if field_type == 'byte':
+                        # Try to get byte value
+                        for offset in [0, 1, 2, 3]:
+                            if value_pos + offset < len(data):
+                                value = data[value_pos + offset]
+                                if value in [0, 1]:
                                     result_dict[field] = value
                                     break
-                            except:
-                                continue
+                    elif field_type == 'float':
+                        # Try to get float value
+                        for offset in [0, 1, 2, 3, 4]:
+                            if value_pos + offset + 4 <= len(data):
+                                try:
+                                    value = struct.unpack('<f', data[value_pos+offset:value_pos+offset+4])[0]
+                                    if not (value != value):  # Not NaN
+                                        result_dict[field] = value
+                                        break
+                                except:
+                                    continue
+            
+            # Search for experiments fields
+            for field, field_type in experiments_fields.items():
+                field_bytes = field.encode('utf-8')
+                field_pos = data.find(field_bytes, pos, search_range)
+                if field_pos > 0:
+                    value_pos = field_pos + len(field_bytes)
+                    if field_type == 'byte':
+                        for offset in [0, 1, 2, 3]:
+                            if value_pos + offset < len(data):
+                                value = data[value_pos + offset]
+                                if value in [0, 1]:
+                                    result_dict[field] = value
+                                    break
             
             return result_dict if len(result_dict) > 0 else None
             
+        except Exception as e:
+            print(f"Error parsing compound: {e}")
+            return None
+    
+    def _detect_unknown_fields(self, data, known_fields):
+        """Auto-detect ALL fields in level.dat dynamically"""
+        unknown_fields = {}
+        
+        try:
+            print("🔍 Scanning for ALL fields in level.dat...")
+            
+            # Use a smarter approach - find complete field names only
+            # Look for patterns that indicate field boundaries
+            field_candidates = set()
+            
+            # First pass: collect all potential field names
+            for i in range(len(data) - 10):
+                # Look for field names that end with common patterns
+                for length in range(3, 51):
+                    if i + length > len(data):
+                        break
+                    
+                    try:
+                        potential_name = data[i:i+length].decode('utf-8')
+                        
+                        # Basic validation
+                        if (potential_name.isprintable() and 
+                            potential_name.isascii() and
+                            not potential_name.startswith('\x00') and
+                            len(potential_name) >= 3 and
+                            potential_name[0].isalpha() and
+                            potential_name.isalnum()):
+                            
+                            # Check if this looks like a complete field name
+                            # Look for patterns that indicate field boundaries
+                            value_pos = i + length
+                            if value_pos < len(data):
+                                # Check if the next bytes could be a valid value
+                                if self._looks_like_field_boundary(data, value_pos):
+                                    field_candidates.add((potential_name, value_pos))
+                                    
+                    except UnicodeDecodeError:
+                        continue
+            
+            # Second pass: validate and extract only the longest valid field names
+            # This prevents adding partial field names like "Difficu", "Difficul", etc.
+            validated_fields = {}
+            
+            for field_name, value_pos in field_candidates:
+                if field_name not in known_fields and field_name not in unknown_fields:
+                    # Check if this is the longest version of this field name
+                    is_longest = True
+                    for other_name, _ in field_candidates:
+                        if (other_name != field_name and 
+                            other_name.startswith(field_name) and 
+                            len(other_name) > len(field_name)):
+                            is_longest = False
+                            break
+                    
+                    if is_longest:
+                        # Additional validation: check if this looks like a real field name
+                        if self._is_valid_field_name(field_name):
+                            # Try to extract value
+                            for field_type in ['byte', 'int', 'long', 'float', 'string']:
+                                try:
+                                    value = self._extract_value_by_type(data, value_pos, field_type)
+                                    if value is not None and self._validate_field_value(field_name, value, field_type):
+                                        validated_fields[field_name] = value
+                                        print(f"✅ Found field: {field_name} = {value} (type: {field_type})")
+                                        break
+                                except Exception:
+                                    continue
+                            
+                            # Also try to parse as compound
+                            try:
+                                compound_data = self._try_parse_compound_at(data, value_pos)
+                                if compound_data and len(compound_data) > 0:
+                                    validated_fields[field_name] = compound_data
+                                    print(f"✅ Found compound: {field_name} = {compound_data}")
+                            except Exception:
+                                pass
+            
+            unknown_fields.update(validated_fields)
+                        
+        except Exception as e:
+            print(f"Error in dynamic field detection: {e}")
+        
+        return unknown_fields
+    
+    def _guess_field_type(self, data, pos):
+        """Guess the field type based on the data at position"""
+        try:
+            if pos >= len(data):
+                return None
+            
+            # Look for common patterns
+            if pos + 1 < len(data):
+                # Check for byte (0 or 1)
+                if data[pos] in [0, 1]:
+                    return 'byte'
+                
+                # Check for short/int/long patterns
+                if pos + 4 < len(data):
+                    # Try to interpret as int
+                    try:
+                        value = struct.unpack('<i', data[pos:pos+4])[0]
+                        if -1000000 <= value <= 1000000:  # Reasonable int range
+                            return 'int'
+                    except:
+                        pass
+                
+                if pos + 8 < len(data):
+                    # Try to interpret as long
+                    try:
+                        value = struct.unpack('<q', data[pos:pos+8])[0]
+                        if -1000000000000 <= value <= 1000000000000:  # Reasonable long range
+                            return 'long'
+                    except:
+                        pass
+                
+                # Check for float
+                if pos + 4 < len(data):
+                    try:
+                        value = struct.unpack('<f', data[pos:pos+4])[0]
+                        if -1000000.0 <= value <= 1000000.0:  # Reasonable float range
+                            return 'float'
+                    except:
+                        pass
+            
+            return None
         except Exception:
             return None
+    
+    def _looks_like_field_boundary(self, data, pos):
+        """Check if the position looks like it could be the start of a field value"""
+        try:
+            if pos >= len(data):
+                return False
+            
+            # Check for common patterns that indicate field boundaries
+            # Look for byte values that could be field values
+            if pos + 1 < len(data):
+                # Check for byte (0 or 1)
+                if data[pos] in [0, 1]:
+                    return True
+                
+                # Check for int/long patterns
+                if pos + 4 < len(data):
+                    try:
+                        value = struct.unpack('<i', data[pos:pos+4])[0]
+                        if -1000000 <= value <= 1000000:  # Reasonable int range
+                            return True
+                    except:
+                        pass
+                
+                if pos + 8 < len(data):
+                    try:
+                        value = struct.unpack('<q', data[pos:pos+8])[0]
+                        if -1000000000000 <= value <= 1000000000000:  # Reasonable long range
+                            return True
+                    except:
+                        pass
+                
+                # Check for float
+                if pos + 4 < len(data):
+                    try:
+                        value = struct.unpack('<f', data[pos:pos+4])[0]
+                        if -1000000.0 <= value <= 1000000.0:  # Reasonable float range
+                            return True
+                    except:
+                        pass
+            
+            return False
+        except Exception:
+            return False
+    
+    def _is_valid_field_name(self, field_name):
+        """Check if a field name looks like a valid Minecraft field name"""
+        try:
+            # Common Minecraft field name patterns
+            valid_patterns = [
+                # Game settings
+                r'^[A-Z][a-zA-Z0-9]*$',  # PascalCase
+                r'^[a-z][a-zA-Z0-9]*$',  # camelCase
+                r'^[a-z][a-z0-9]*$',     # lowercase
+                
+                # Boolean fields
+                r'^[a-z][a-zA-Z0-9]*enabled$',
+                r'^[a-z][a-zA-Z0-9]*disabled$',
+                r'^[a-z][a-zA-Z0-9]*allowed$',
+                r'^[a-z][a-zA-Z0-9]*locked$',
+                r'^do[A-Z][a-zA-Z0-9]*$',
+                r'^show[A-Z][a-zA-Z0-9]*$',
+                r'^has[A-Z][a-zA-Z0-9]*$',
+                r'^is[A-Z][a-zA-Z0-9]*$',
+                
+                # Version fields
+                r'^[a-zA-Z][a-zA-Z0-9]*Version$',
+                r'^[a-zA-Z][a-zA-Z0-9]*Time$',
+                r'^[a-zA-Z][a-zA-Z0-9]*Level$',
+                r'^[a-zA-Z][a-zA-Z0-9]*Count$',
+                r'^[a-zA-Z][a-zA-Z0-9]*Seed$',
+            ]
+            
+            import re
+            for pattern in valid_patterns:
+                if re.match(pattern, field_name):
+                    return True
+            
+            # Additional checks for common field names
+            common_fields = [
+                'GameType', 'LevelName', 'RandomSeed', 'Time', 'SpawnX', 'SpawnY', 'SpawnZ',
+                'Difficulty', 'Generator', 'NetworkVersion', 'StorageVersion', 'WorldVersion',
+                'Platform', 'abilities', 'experiments', 'world_policies', 'FlatWorldLayers',
+                'BiomeOverride', 'InventoryVersion', 'baseGameVersion', 'prid',
+                'LimitedWorldOriginX', 'LimitedWorldOriginY', 'LimitedWorldOriginZ',
+                'NetherScale', 'daylightCycle', 'editorWorldType', 'eduOffer',
+                'functioncommandlimit', 'lightningTime', 'limitedWorldDepth', 'limitedWorldWidth',
+                'maxcommandchainlength', 'permissionsLevel', 'playerPermissionsLevel',
+                'playerssleepingpercentage', 'rainTime', 'randomtickspeed', 'serverChunkTickRange',
+                'spawnradius', 'LastPlayed', 'currentTick', 'worldStartCount',
+                'lightningLevel', 'rainLevel'
+            ]
+            
+            return field_name in common_fields
+            
+        except Exception:
+            return False
+    
+    def _validate_field_value(self, field_name, value, field_type):
+        """Validate if a detected field value is reasonable"""
+        try:
+            # Basic validation based on field type
+            if field_type == 'byte':
+                return isinstance(value, int) and 0 <= value <= 1
+            elif field_type == 'int':
+                return isinstance(value, int) and -1000000 <= value <= 1000000
+            elif field_type == 'long':
+                return isinstance(value, int) and -1000000000000 <= value <= 1000000000000
+            elif field_type == 'float':
+                return isinstance(value, (int, float)) and -1000000.0 <= value <= 1000000.0
+            elif field_type == 'string':
+                return isinstance(value, str) and len(value) <= 1000
+            
+            return True
+        except Exception:
+            return False
     
     def __init__(self):
         super().__init__()

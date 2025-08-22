@@ -1,97 +1,59 @@
 # Bedrock NBT/DAT Editor
 
-A Python GUI application for editing Minecraft Bedrock Edition NBT and DAT files, particularly `level.dat` files.
+Editor untuk file NBT/DAT Minecraft Bedrock Edition dengan fitur auto-detection untuk menemukan key yang belum terdaftar.
 
-## Features
+## Fitur Utama
 
-- **World Browser**: Automatically detects and lists Minecraft Bedrock worlds
-- **NBT Editor**: View and edit NBT data in a tree structure
-- **Live Search**: Filter NBT keys in real-time
-- **File Support**: Supports `.nbt`, `.dat`, `.snbt`, and `.txt` files
-- **Cross-Platform**: Works on Windows, macOS, and Linux
+### 🔍 Reliable NBT Parsing System
+Program sekarang menggunakan sistem parsing yang reliable dan menghasilkan output yang bersih sesuai dengan struktur level.dat yang benar:
 
-## Requirements
+- **Reliable NBT Parsing**: Menggunakan library NBT yang teruji untuk parsing yang akurat
+- **Clean Output**: Menghasilkan data yang bersih tanpa key per huruf atau substring
+- **Proper Hierarchy**: Menampilkan struktur nested yang benar untuk compound fields
+- **Correct Field Names**: Menggunakan nama field yang benar sesuai standar Minecraft
+- **Accurate Values**: Menampilkan nilai yang akurat tanpa duplikasi atau error
+- **Compound Support**: Mendukung struktur compound seperti `abilities` dan `experiments`
+- **Version Arrays**: Menangani array versi seperti `MinimumCompatibleClientVersion`
 
-- Python 3.7 or higher
+### 🎯 Output yang Bersih dan Akurat
+Program akan menampilkan data level.dat dengan struktur yang benar dan bersih:
+- **Field names yang benar** sesuai standar Minecraft (tidak ada partial names)
+- **Values yang akurat** tanpa duplikasi atau error parsing
+- **Proper hierarchy** untuk compound fields seperti `abilities` dan `experiments`
+- **Correct data types** (byte, int, long, float, string, arrays)
+- **Clean structure** tanpa key per huruf atau substring yang tidak valid
+
+### 📊 Debug Information
+Program menampilkan informasi debug saat auto-detection:
+```
+🔍 Scanning for unknown fields...
+✅ Found X unknown fields: [field1, field2, field3]
+Auto-detected field: fieldname = value (type: int)
+Auto-detected compound: abilities = {...}
+```
+
+## Cara Kerja Reliable NBT Parsing
+
+1. **Library-Based Parsing**: Menggunakan library NBT yang teruji (nbtlib, amulet-nbt)
+2. **Known Field Mapping**: Menggunakan daftar field yang sudah dikenal dan teruji
+3. **Compound Structure Parsing**: Parsing struktur compound dengan field yang benar
+4. **Type-Specific Extraction**: Mengekstrak nilai berdasarkan tipe data yang tepat
+5. **Error Handling**: Menangani error parsing dengan graceful fallback
+6. **Clean Output Generation**: Menghasilkan output yang bersih dan terstruktur
+
+## Penggunaan
+
+1. Jalankan program: `python main.py`
+2. Pilih world dari daftar atau buka file NBT/DAT
+3. Program akan otomatis mendeteksi dan menampilkan semua key yang ada
+4. Key yang auto-detected akan muncul di tree view dengan format yang sama
+
+## Dependencies
+
 - PyQt5
 - nbtlib
-- amulet-nbt (optional, for enhanced Bedrock support)
-
-## Installation
-
-1. Clone or download this repository
-2. Install required packages:
-   ```bash
-   pip install PyQt5 nbtlib
-   ```
-3. Run the program:
-   ```bash
-   python main.py
-   ```
-
-## Usage
-
-1. **Launch the program**: Run `python main.py`
-2. **Select a world**: Click on a world from the left sidebar
-3. **Browse NBT data**: The center panel shows the NBT structure
-4. **Search**: Use the search box to filter keys
-5. **Edit values**: Double-click on values to edit them
-6. **Save changes**: Use the save button in the toolbar
-
-## Features
-
-### World Detection
-The program automatically finds Minecraft Bedrock worlds in the default locations:
-- **Windows**: `%LOCALAPPDATA%\Packages\Microsoft.MinecraftUWP_*\LocalState\games\com.mojang\minecraftWorlds`
-- **macOS**: `~/Library/Application Support/mcpelauncher/games/com.mojang/minecraftWorlds`
-- **Linux**: `~/.local/share/mcpelauncher/games/com.mojang/minecraftWorlds`
-
-### NBT Parsing
-- Supports both Bedrock and Java Edition NBT formats
-- Uses multiple parsing methods for maximum compatibility
-- Fallback to manual parsing for problematic files
-
-### Search and Filter
-- Real-time search as you type
-- Highlights matching items
-- Shows result count
-- Easy to clear search and show all items
-
-### Editing
-- Inline editing of NBT values
-- Confirmation dialogs for changes
-- Color-coded data types (integers, floats, strings)
-
-## File Formats Supported
-
-- **NBT files** (`.nbt`): Binary NBT format
-- **DAT files** (`.dat`): Minecraft data files (usually NBT)
-- **SNBT files** (`.snbt`): String NBT format
-- **Text files** (`.txt`): Simple key-value format
-
-## Troubleshooting
-
-### Common Issues
-
-1. **"amulet-nbt not available"**: This is normal - the program works with just nbtlib
-2. **No worlds found**: Make sure Minecraft Bedrock is installed and you have created worlds
-3. **Permission errors**: Run as administrator if needed for system folders
-
-### Testing
-
-Run the test script to verify everything works:
-```bash
-python test_program.py
-```
+- amulet-nbt (optional)
 
 ## Author
 
-**Adam Arias Jauhari**
-
-## License
-
-This project is open source. Feel free to modify and distribute.
-
-## Contributing
-
-Feel free to submit issues and enhancement requests!
+Bedrock NBT/DAT Editor by Adam Arias Jauhari
