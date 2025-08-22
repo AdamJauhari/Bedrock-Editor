@@ -100,12 +100,19 @@ class NBTEditor(QMainWindow):
 
 
     def load_worlds(self):
+        from PyQt5.QtWidgets import QListWidgetItem, QWidget, QVBoxLayout, QLabel, QHBoxLayout, QSizePolicy
+        from PyQt5.QtGui import QPixmap
         self.world_list.clear()
         if os.path.exists(MINECRAFT_WORLDS_PATH):
             for folder in os.listdir(MINECRAFT_WORLDS_PATH):
                 world_path = os.path.join(MINECRAFT_WORLDS_PATH, folder)
                 level_dat = os.path.join(world_path, "level.dat")
                 levelname_txt = os.path.join(world_path, "levelname.txt")
+                icon_path = os.path.join(world_path, "world_icon.png")
+                if not os.path.exists(icon_path):
+                    icon_path = os.path.join(world_path, "icon.png")
+                if not os.path.exists(icon_path):
+                    icon_path = os.path.join(world_path, "world_icon.jpeg")
                 world_name = folder
                 # Coba ambil dari levelname.txt
                 if os.path.exists(levelname_txt):
@@ -125,7 +132,40 @@ class NBTEditor(QMainWindow):
                             world_name = str(name_tag)
                     except Exception:
                         pass
-                self.world_list.addItem(f"{world_name}")
+                # Buat widget custom untuk world
+                item_widget = QWidget()
+                vbox = QVBoxLayout()
+                vbox.setContentsMargins(12, 12, 12, 12)
+                vbox.setSpacing(6)
+                # Icon
+                icon_label = QLabel()
+                icon_label.setFixedSize(120, 80)
+                icon_label.setAlignment(Qt.AlignCenter)
+                icon_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+                if os.path.exists(icon_path):
+                    pixmap = QPixmap(icon_path)
+                    if not pixmap.isNull():
+                        pixmap = pixmap.scaled(120, 80, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                        icon_label.setPixmap(pixmap)
+                        icon_label.setStyleSheet("background-color: #222; border-radius: 14px; margin-bottom: 2px;")
+                    else:
+                        icon_label.setText("world_icon.png")
+                        icon_label.setStyleSheet("background-color: #888; color: #222; border-radius: 14px; font-size: 14px;")
+                else:
+                    icon_label.setText("world_icon.png")
+                    icon_label.setStyleSheet("background-color: #888; color: #222; border-radius: 14px; font-size: 14px;")
+                vbox.addWidget(icon_label, alignment=Qt.AlignHCenter)
+                # Nama world
+                name_label = QLabel(world_name)
+                name_label.setStyleSheet("color: #fff; font-size: 16px; font-weight: bold; margin-top: 4px;")
+                name_label.setAlignment(Qt.AlignCenter)
+                vbox.addWidget(name_label)
+                item_widget.setLayout(vbox)
+                # Tambahkan ke QListWidget
+                item = QListWidgetItem()
+                item.setSizeHint(item_widget.sizeHint())
+                self.world_list.addItem(item)
+                self.world_list.setItemWidget(item, item_widget)
 
     def on_world_selected(self, item):
         # Cari folder berdasarkan urutan di world_list
