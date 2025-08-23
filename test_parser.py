@@ -44,10 +44,13 @@ def test_parser():
             print(f"\n✅ Parser berhasil! Ditemukan {len(result)} keys:")
             print("=" * 50)
             
-            # Tampilkan semua keys yang ditemukan
+            # Tampilkan semua keys yang ditemukan dengan struktur hierarkis
             for i, (key, value) in enumerate(result.items(), 1):
                 if isinstance(value, dict):
                     print(f"{i:2d}. {key}: {len(value)} entries")
+                    # Tampilkan sub-entries dengan indent
+                    for sub_key, sub_value in value.items():
+                        print(f"    └─ {sub_key}: {sub_value}")
                 elif isinstance(value, list):
                     print(f"{i:2d}. {key}: {len(value)} items")
                 else:

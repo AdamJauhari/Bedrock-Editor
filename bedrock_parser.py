@@ -157,7 +157,7 @@ class BedrockParser:
             return str(value)
     
     def _parse_binary_nbt(self, data):
-        """Manual binary NBT parser sebagai fallback"""
+        """Manual binary NBT parser sebagai fallback dengan struktur hierarkis"""
         try:
             result = {}
             pos = 0
@@ -177,7 +177,7 @@ class BedrockParser:
                     print("Detected NBT header, skipping...")
                     pos = 4
             
-            # Parse NBT structure
+            # Parse NBT structure dengan deteksi compound
             while pos < len(data) - 10:  # Minimal length untuk key-value pair
                 # Cari string patterns (key names)
                 string_pattern = self._find_string_pattern(data, pos)
@@ -188,15 +188,26 @@ class BedrockParser:
                     # Coba parse value setelah key
                     value, new_pos = self._parse_value_at(data, pos)
                     if value is not None:
-                        result[key_name] = value
+                        # Cek apakah ini adalah compound tag
+                        if self._is_compound_start(data, pos):
+                            # Parse compound structure
+                            compound_data = self._parse_compound_structure(data, pos, key_name)
+                            if compound_data:
+                                result[key_name] = compound_data
+                                print(f"Found compound: {key_name} with {len(compound_data)} entries")
+                            else:
+                                result[key_name] = value
+                        else:
+                            result[key_name] = value
                         pos = new_pos
-                        print(f"Found key: {key_name} = {value}")
                     else:
                         pos += 1
                 else:
                     pos += 1
             
-            return result
+            # Post-process untuk mengelompokkan key yang seharusnya dalam compound
+            organized_result = self._organize_compound_keys(result)
+            return organized_result
             
         except Exception as e:
             print(f"Binary parser error: {e}")
@@ -296,6 +307,143 @@ class BedrockParser:
             
         except Exception:
             return None, pos + 1
+
+    def _is_compound_start(self, data, pos):
+        """Detect if position starts a compound tag"""
+        try:
+            if pos + 4 <= len(data):
+                # Check for compound tag type (0x0A)
+                if data[pos] == 0x0A:
+                    return True
+                # Check for list tag type (0x09)
+                elif data[pos] == 0x09:
+                    return True
+            return False
+        except Exception:
+            return False
+    
+    def _parse_compound_structure(self, data, pos, compound_name):
+        """Parse compound structure and find nested keys"""
+        try:
+            compound_data = {}
+            
+            # Define known compound structures
+            if compound_name == "experiments":
+                # Known experiments keys
+                experiments_keys = [
+                    'data_driven_biomes', 'experiments_ever_used', 'gametest',
+                    'jigsaw_structures', 'saved_with_toggled_experiments',
+                    'experimental_creator_cameras', 'upcoming_creator_features',
+                    'villager_trades_rebalance', 'y_2025_drop_3'
+                ]
+                
+                # Search for these keys in the data after compound start
+                search_start = pos + 10  # Skip compound header
+                search_end = min(pos + 500, len(data))  # Search in reasonable range
+                
+                for key in experiments_keys:
+                    key_pos = self._find_key_in_range(data, search_start, search_end, key)
+                    if key_pos:
+                        value, _ = self._parse_value_at(data, key_pos + len(key.encode()))
+                        if value is not None:
+                            compound_data[key] = value
+                
+                return compound_data if compound_data else None
+                
+            elif compound_name == "abilities":
+                # Known abilities keys
+                abilities_keys = [
+                    'attackmobs', 'attackplayers', 'build', 'doorsandswitches',
+                    'flying', 'instabuild', 'invulnerable', 'lightning',
+                    'mayfly', 'mine', 'op', 'opencontainers', 'teleport',
+                    'flySpeed', 'walkSpeed', 'verticalFlySpeed'
+                ]
+                
+                # Search for these keys in the data after compound start
+                search_start = pos + 10  # Skip compound header
+                search_end = min(pos + 500, len(data))  # Search in reasonable range
+                
+                for key in abilities_keys:
+                    key_pos = self._find_key_in_range(data, search_start, search_end, key)
+                    if key_pos:
+                        value, _ = self._parse_value_at(data, key_pos + len(key.encode()))
+                        if value is not None:
+                            compound_data[key] = value
+                
+                return compound_data if compound_data else None
+            
+            return None
+            
+        except Exception as e:
+            print(f"Error parsing compound {compound_name}: {e}")
+            return None
+    
+    def _find_key_in_range(self, data, start_pos, end_pos, key_name):
+        """Find a specific key within a data range"""
+        try:
+            key_bytes = key_name.encode('utf-8')
+            for pos in range(start_pos, end_pos - len(key_bytes)):
+                if data[pos:pos+len(key_bytes)] == key_bytes:
+                    return pos
+            return None
+        except Exception:
+            return None
+    
+    def _organize_compound_keys(self, flat_result):
+        """Organize flat keys into proper compound structure"""
+        try:
+            organized = {}
+            
+            # Define compound mappings
+            experiments_keys = [
+                'data_driven_biomes', 'experiments_ever_used', 'gametest',
+                'jigsaw_structures', 'saved_with_toggled_experiments',
+                'experimental_creator_cameras', 'upcoming_creator_features',
+                'villager_trades_rebalance', 'y_2025_drop_3'
+            ]
+            
+            abilities_keys = [
+                'attackmobs', 'attackplayers', 'build', 'doorsandswitches',
+                'flying', 'instabuild', 'invulnerable', 'lightning',
+                'mayfly', 'mine', 'op', 'opencontainers', 'teleport',
+                'flySpeed', 'walkSpeed', 'verticalFlySpeed'
+            ]
+            
+            # Process each key
+            for key, value in flat_result.items():
+                if str(key) in experiments_keys:
+                    # Add to experiments compound
+                    if 'experiments' not in organized:
+                        organized['experiments'] = {}
+                    elif not isinstance(organized['experiments'], dict):
+                        # Convert existing value to dict if needed
+                        organized['experiments'] = {}
+                    organized['experiments'][str(key)] = value
+                elif str(key) in abilities_keys:
+                    # Add to abilities compound
+                    if 'abilities' not in organized:
+                        organized['abilities'] = {}
+                    elif not isinstance(organized['abilities'], dict):
+                        # Convert existing value to dict if needed
+                        organized['abilities'] = {}
+                    organized['abilities'][str(key)] = value
+                elif str(key) == 'experiments' and isinstance(value, (int, float)):
+                    # Skip the experiments marker key (it's just a flag)
+                    pass
+                elif str(key) == 'abilities' and isinstance(value, (int, float)):
+                    # Skip the abilities marker key (it's just a flag)
+                    pass
+                else:
+                    # Keep as top-level key
+                    organized[str(key)] = value
+            
+            return organized
+            
+        except Exception as e:
+            print(f"Error organizing compound keys: {e}")
+            import traceback
+            traceback.print_exc()
+            return flat_result
 
     # Legacy methods for backward compatibility
     def _extract_value_by_type(self, data, pos, field_type):
