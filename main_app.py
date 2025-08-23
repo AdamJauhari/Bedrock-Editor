@@ -5,13 +5,14 @@ import nbtlib
 # Import our separated modules
 from package_manager import *
 from minecraft_paths import MINECRAFT_WORLDS_PATH
-from nbt_utils import nbt_to_dict, get_nbt_value_display
+from nbt_utils import nbt_to_dict, get_nbt_value_display, convert_to_json_format, get_value_type_icon
 from bedrock_parser import BedrockParser
 from search_utils import SearchUtils
 from gui_components import GUIComponents
 
 # Additional imports needed for the main app
 from PyQt5.QtWidgets import QListWidgetItem
+import json
 
 class NBTEditor(QMainWindow):
     def __init__(self):
@@ -54,9 +55,13 @@ class NBTEditor(QMainWindow):
         open_action.triggered.connect(self.open_file)
         save_action = QAction(QIcon(), "Simpan", self)
         save_action.triggered.connect(self.save_file)
+        export_json_action = QAction(QIcon(), "Export ke JSON", self)
+        export_json_action.triggered.connect(self.export_to_json)
         file_menu = menubar.addMenu("File")
         file_menu.addAction(open_action)
         file_menu.addAction(save_action)
+        file_menu.addSeparator()
+        file_menu.addAction(export_json_action)
         
         # Toolbar dengan Save Button
         toolbar = self.addToolBar("Main")
@@ -389,6 +394,7 @@ class NBTEditor(QMainWindow):
             
             for key, value in sorted_items:
                 value_display = get_nbt_value_display(value)
+                type_icon = get_value_type_icon(value)
                 
                 if isinstance(value, (dict, list)) or hasattr(value, 'items'):
                     # Untuk compound/list, tampilkan key dan jumlah entries
@@ -408,13 +414,35 @@ class NBTEditor(QMainWindow):
                     # Set hanya kolom Value (1) yang editable
                     item.setFlags(item.flags() | Qt.ItemIsSelectable | Qt.ItemIsEnabled)
                     
+                    # Set icon berdasarkan tipe data
+                    if type_icon == "B":
+                        # Byte/Boolean - blue B icon
+                        item.setIcon(0, self.style().standardIcon(self.style().SP_MessageBoxInformation))
+                    elif type_icon == "I":
+                        # Integer - blue I icon
+                        item.setIcon(0, self.style().standardIcon(self.style().SP_MessageBoxInformation))
+                    elif type_icon == "L":
+                        # Long - green L icon
+                        item.setIcon(0, self.style().standardIcon(self.style().SP_MessageBoxInformation))
+                    elif type_icon == "F":
+                        # Float - orange F icon
+                        item.setIcon(0, self.style().standardIcon(self.style().SP_MessageBoxInformation))
+                    elif type_icon == "S":
+                        # String - yellow quotes icon
+                        item.setIcon(0, self.style().standardIcon(self.style().SP_MessageBoxInformation))
+                    
                     # Set warna yang kontras untuk semua tipe data
-                    if isinstance(value, int):
-                        item.setForeground(1, QColor("#4da6ff"))  # Light blue untuk angka
+                    if isinstance(value, bool):
+                        item.setForeground(1, QColor("#4da6ff"))  # Light blue untuk boolean
+                    elif isinstance(value, int):
+                        if abs(value) > 2147483647:
+                            item.setForeground(1, QColor("#51cf66"))  # Light green untuk long
+                        else:
+                            item.setForeground(1, QColor("#4da6ff"))  # Light blue untuk integer
                     elif isinstance(value, float):
                         item.setForeground(1, QColor("#ff6b6b"))  # Light red untuk float
                     elif isinstance(value, str):
-                        item.setForeground(1, QColor("#51cf66"))  # Light green untuk string
+                        item.setForeground(1, QColor("#ffd43b"))  # Yellow untuk string
                     else:
                         item.setForeground(1, QColor("#e1e1e1"))  # Default light gray
                     
@@ -424,6 +452,7 @@ class NBTEditor(QMainWindow):
             # List NBT - tampilkan index sebagai key
             for idx, value in enumerate(nbt_node):
                 value_display = get_nbt_value_display(value)
+                type_icon = get_value_type_icon(value)
                 
                 if isinstance(value, (dict, list)) or hasattr(value, 'items'):
                     item = QTreeWidgetItem([f"[{idx}]", value_display])
@@ -433,6 +462,24 @@ class NBTEditor(QMainWindow):
                     item = QTreeWidgetItem([f"[{idx}]", value_display])
                     # Set hanya kolom Value (1) yang editable
                     item.setFlags(item.flags() | Qt.ItemIsSelectable | Qt.ItemIsEnabled)
+                    
+                    # Set icon dan warna berdasarkan tipe data
+                    if type_icon == "B":
+                        item.setIcon(0, self.style().standardIcon(self.style().SP_MessageBoxInformation))
+                        item.setForeground(1, QColor("#4da6ff"))
+                    elif type_icon == "I":
+                        item.setIcon(0, self.style().standardIcon(self.style().SP_MessageBoxInformation))
+                        item.setForeground(1, QColor("#4da6ff"))
+                    elif type_icon == "L":
+                        item.setIcon(0, self.style().standardIcon(self.style().SP_MessageBoxInformation))
+                        item.setForeground(1, QColor("#51cf66"))
+                    elif type_icon == "F":
+                        item.setIcon(0, self.style().standardIcon(self.style().SP_MessageBoxInformation))
+                        item.setForeground(1, QColor("#ff6b6b"))
+                    elif type_icon == "S":
+                        item.setIcon(0, self.style().standardIcon(self.style().SP_MessageBoxInformation))
+                        item.setForeground(1, QColor("#ffd43b"))
+                    
                     parent_item.addChild(item)
         else:
             # Nilai tunggal
@@ -498,6 +545,22 @@ class NBTEditor(QMainWindow):
     def perform_live_search(self):
         """Delegate to search utils"""
         self.search_utils.perform_live_search()
+
+    def export_to_json(self):
+        """Export the current NBT data to a JSON file."""
+        if self.nbt_data is None:
+            QMessageBox.warning(self, "Peringatan", "Tidak ada data NBT untuk diekspor.")
+            return
+
+        file_path, _ = QFileDialog.getSaveFileName(self, "Simpan File JSON", "", "JSON Files (*.json)")
+        if file_path:
+            try:
+                json_data = convert_to_json_format(self.nbt_data)
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    json.dump(json_data, f, indent=4)
+                QMessageBox.information(self, "Sukses", f"Data NBT berhasil diekspor ke {file_path}")
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Gagal mengekspor data JSON: {e}")
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
