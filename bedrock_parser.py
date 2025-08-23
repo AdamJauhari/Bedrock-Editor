@@ -1,350 +1,307 @@
 import struct
 import re
+import nbtlib
+
+# Import AMULET_AVAILABLE from package_manager
+try:
+    from package_manager import AMULET_AVAILABLE, amulet_load
+except ImportError:
+    AMULET_AVAILABLE = False
+    amulet_load = None
 
 class BedrockParser:
-    """Manual parser untuk Bedrock level.dat dengan pattern matching dan NBT parsing"""
+    """Advanced parser untuk Bedrock level.dat dengan dynamic key detection"""
     
     def parse_bedrock_level_dat_manual(self, file_path):
         """
-        Hybrid parser untuk Bedrock level.dat dengan pattern matching dan NBT parsing
+        Dynamic parser untuk Bedrock level.dat yang bisa mendeteksi semua key
         """
         try:
             with open(file_path, 'rb') as f:
                 data = f.read()
             
-            print(f"Using hybrid parsing approach for {len(data)} bytes")
+            print(f"Using dynamic parsing approach for {len(data)} bytes")
             
+            # Coba berbagai metode parsing untuk mendapatkan semua key
             result = {}
             
-            # Define all known level.dat fields dengan expected types
-            level_dat_fields = {
-                # String fields
-                'BiomeOverride': ('string', r'BiomeOverride'),
-                'FlatWorldLayers': ('string', r'FlatWorldLayers'), 
-                'InventoryVersion': ('string', r'InventoryVersion'),
-                'LevelName': ('string', r'LevelName'),
-                'baseGameVersion': ('string', r'baseGameVersion'),
-                'prid': ('string', r'prid'),
-                
-                # Additional fields from the correct structure
-                'HasUncompleteWorldFileOnDisk': ('byte', r'HasUncompleteWorldFileOnDisk'),
-                'locatorbar': ('byte', r'locatorbar'),
-                
-                # Byte fields (0 atau 1)
-                'CenterMapsToOrigin': ('byte', r'CenterMapsToOrigin'),
-                'ConfirmedPlatformLockedContent': ('byte', r'ConfirmedPlatformLockedContent'),
-                'ForceGameType': ('byte', r'ForceGameType'),
-                'IsHardcore': ('byte', r'IsHardcore'),
-                'LANBroadcast': ('byte', r'LANBroadcast'),
-                'LANBroadcastIntent': ('byte', r'LANBroadcastIntent'),
-                'MultiplayerGame': ('byte', r'MultiplayerGame'),
-                'MultiplayerGameIntent': ('byte', r'MultiplayerGameIntent'),
-                'PlayerHasDied': ('byte', r'PlayerHasDied'),
-                'SpawnV1Villagers': ('byte', r'SpawnV1Villagers'),
-                'bonusChestEnabled': ('byte', r'bonusChestEnabled'),
-                'bonusChestSpawned': ('byte', r'bonusChestSpawned'),
-                'cheatsEnabled': ('byte', r'cheatsEnabled'),
-                'commandblockoutput': ('byte', r'commandblockoutput'),
-                'commandblocksenabled': ('byte', r'commandblocksenabled'),
-                'commandsEnabled': ('byte', r'commandsEnabled'),
-                'dodaylightcycle': ('byte', r'dodaylightcycle'),
-                'doentitydrops': ('byte', r'doentitydrops'),
-                'dofiretick': ('byte', r'dofiretick'),
-                'doimmediaterespawn': ('byte', r'doimmediaterespawn'),
-                'doinsomnia': ('byte', r'doinsomnia'),
-                'dolimitedcrafting': ('byte', r'dolimitedcrafting'),
-                'domobloot': ('byte', r'domobloot'),
-                'domobspawning': ('byte', r'domobspawning'),
-                'dotiledrops': ('byte', r'dotiledrops'),
-                'doweathercycle': ('byte', r'doweathercycle'),
-                'drowningdamage': ('byte', r'drowningdamage'),
-                'educationFeaturesEnabled': ('byte', r'educationFeaturesEnabled'),
-                'falldamage': ('byte', r'falldamage'),
-                'firedamage': ('byte', r'firedamage'),
-                'freezedamage': ('byte', r'freezedamage'),
-                'hasBeenLoadedInCreative': ('byte', r'hasBeenLoadedInCreative'),
-                'hasLockedBehaviorPack': ('byte', r'hasLockedBehaviorPack'),
-                'hasLockedResourcePack': ('byte', r'hasLockedResourcePack'),
-                'immutableWorld': ('byte', r'immutableWorld'),
-                'isCreatedInEditor': ('byte', r'isCreatedInEditor'),
-                'isExportedFromEditor': ('byte', r'isExportedFromEditor'),
-                'isFromLockedTemplate': ('byte', r'isFromLockedTemplate'),
-                'isFromWorldTemplate': ('byte', r'isFromWorldTemplate'),
-                'isRandomSeedAllowed': ('byte', r'isRandomSeedAllowed'),
-                'isSingleUseWorld': ('byte', r'isSingleUseWorld'),
-                'isWorldTemplateOptionLocked': ('byte', r'isWorldTemplateOptionLocked'),
-                'keepinventory': ('byte', r'keepinventory'),
-                'mobgriefing': ('byte', r'mobgriefing'),
-                'naturalregeneration': ('byte', r'naturalregeneration'),
-                'projectilescanbreakblocks': ('byte', r'projectilescanbreakblocks'),
-                'pvp': ('byte', r'pvp'),
-                'recipesunlock': ('byte', r'recipesunlock'),
-                'requiresCopiedPackRemovalCheck': ('byte', r'requiresCopiedPackRemovalCheck'),
-                'respawnblocksexplode': ('byte', r'respawnblocksexplode'),
-                'sendcommandfeedback': ('byte', r'sendcommandfeedback'),
-                'showbordereffect': ('byte', r'showbordereffect'),
-                'showcoordinates': ('byte', r'showcoordinates'),
-                'showdaysplayed': ('byte', r'showdaysplayed'),
-                'showdeathmessages': ('byte', r'showdeathmessages'),
-                'showrecipemessages': ('byte', r'showrecipemessages'),
-                'showtags': ('byte', r'showtags'),
-                'spawnMobs': ('byte', r'spawnMobs'),
-                'startWithMapEnabled': ('byte', r'startWithMapEnabled'),
-                'texturePacksRequired': ('byte', r'texturePacksRequired'),
-                'tntexplodes': ('byte', r'tntexplodes'),
-                'tntexplosiondropdecay': ('byte', r'tntexplosiondropdecay'),
-                'useMsaGamertagsOnly': ('byte', r'useMsaGamertagsOnly'),
-                
-                # Integer fields
-                'Difficulty': ('int', r'Difficulty'),
-                'GameType': ('int', r'GameType'),
-                'Generator': ('int', r'Generator'),
-                'LimitedWorldOriginX': ('int', r'LimitedWorldOriginX'),
-                'LimitedWorldOriginY': ('int', r'LimitedWorldOriginY'),
-                'LimitedWorldOriginZ': ('int', r'LimitedWorldOriginZ'),
-                'NetherScale': ('int', r'NetherScale'),
-                'NetworkVersion': ('int', r'NetworkVersion'),
-                'Platform': ('int', r'Platform'),
-                'PlatformBroadcastIntent': ('int', r'PlatformBroadcastIntent'),
-                'SpawnX': ('int', r'SpawnX'),
-                'SpawnY': ('int', r'SpawnY'),
-                'SpawnZ': ('int', r'SpawnZ'),
-                'StorageVersion': ('int', r'StorageVersion'),
-                'WorldVersion': ('int', r'WorldVersion'),
-                'XBLBroadcastIntent': ('int', r'XBLBroadcastIntent'),
-                'daylightCycle': ('int', r'daylightCycle'),
-                'editorWorldType': ('int', r'editorWorldType'),
-                'eduOffer': ('int', r'eduOffer'),
-                'functioncommandlimit': ('int', r'functioncommandlimit'),
-                'lightningTime': ('int', r'lightningTime'),
-                'limitedWorldDepth': ('int', r'limitedWorldDepth'),
-                'limitedWorldWidth': ('int', r'limitedWorldWidth'),
-                'maxcommandchainlength': ('int', r'maxcommandchainlength'),
-                'permissionsLevel': ('int', r'permissionsLevel'),
-                'playerPermissionsLevel': ('int', r'playerPermissionsLevel'),
-                'playerssleepingpercentage': ('int', r'playerssleepingpercentage'),
-                'rainTime': ('int', r'rainTime'),
-                'randomtickspeed': ('int', r'randomtickspeed'),
-                'serverChunkTickRange': ('int', r'serverChunkTickRange'),
-                'spawnradius': ('int', r'spawnradius'),
-                
-                # Long fields  
-                'LastPlayed': ('long', r'LastPlayed'),
-                'RandomSeed': ('long', r'RandomSeed'),
-                'Time': ('long', r'Time'),
-                'currentTick': ('long', r'currentTick'),
-                'worldStartCount': ('long', r'worldStartCount'),
-                
-                # Float fields
-                'lightningLevel': ('float', r'lightningLevel'),
-                'rainLevel': ('float', r'rainLevel'),
-            }
+            # Method 1: Coba dengan amulet-nbt (lebih baik untuk Bedrock)
+            if AMULET_AVAILABLE and amulet_load:
+                try:
+                    print("Trying amulet-nbt parser...")
+                    nbt_data = amulet_load(file_path)
+                    result = self._convert_amulet_nbt_to_dict(nbt_data)
+                    if result and len(result) > 0:
+                        print(f"✅ amulet-nbt berhasil: {len(result)} keys detected")
+                        return result
+                except Exception as e:
+                    print(f"❌ amulet-nbt gagal: {e}")
             
-            # Parse each field
-            for field_name, (field_type, pattern) in level_dat_fields.items():
-                field_bytes = pattern.encode('utf-8')
-                pos = data.find(field_bytes)
+            # Method 2: Coba dengan nbtlib (tanpa gzip)
+            try:
+                print("Trying nbtlib parser...")
+                nbt_data = nbtlib.load(file_path)
+                result = self._convert_nbtlib_to_dict(nbt_data)
+                if result and len(result) > 0:
+                    print(f"✅ nbtlib berhasil: {len(result)} keys detected")
+                    return result
+            except Exception as e:
+                print(f"❌ nbtlib gagal: {e}")
+            
+            # Method 3: Coba dengan nbtlib gzipped
+            try:
+                print("Trying nbtlib gzipped parser...")
+                nbt_data = nbtlib.load(file_path, gzipped=True)
+                result = self._convert_nbtlib_to_dict(nbt_data)
+                if result and len(result) > 0:
+                    print(f"✅ nbtlib gzipped berhasil: {len(result)} keys detected")
+                    return result
+            except Exception as e:
+                print(f"❌ nbtlib gzipped gagal: {e}")
+            
+            # Method 4: Coba dengan nbtlib tanpa root
+            try:
+                print("Trying nbtlib without root...")
+                nbt_data = nbtlib.load(file_path)
+                if hasattr(nbt_data, 'root'):
+                    result = self._convert_nbtlib_value(nbt_data.root)
+                else:
+                    result = self._convert_nbtlib_value(nbt_data)
+                if result and len(result) > 0:
+                    print(f"✅ nbtlib without root berhasil: {len(result)} keys detected")
+                    return result
+            except Exception as e:
+                print(f"❌ nbtlib without root gagal: {e}")
+            
+            # Method 4: Manual binary parsing sebagai fallback
+            print("Trying manual binary parser...")
+            result = self._parse_binary_nbt(data)
+            if result and len(result) > 0:
+                print(f"✅ Manual parser berhasil: {len(result)} keys detected")
+                return result
+            
+            print("❌ Semua metode parsing gagal")
+            return {}
+            
+        except Exception as e:
+            print(f"Dynamic parser failed: {e}")
+            return {}
+    
+    def _convert_amulet_nbt_to_dict(self, nbt_data):
+        """Convert amulet-nbt data to Python dict"""
+        try:
+            if hasattr(nbt_data, 'compound'):
+                return self._convert_amulet_nbt_to_dict(nbt_data.compound)
+            elif hasattr(nbt_data, 'items') and callable(getattr(nbt_data, 'items')):
+                result = {}
+                for k, v in nbt_data.items():
+                    key_str = str(k)
+                    result[key_str] = self._convert_amulet_value(v)
+                return result
+            elif isinstance(nbt_data, dict):
+                result = {}
+                for k, v in nbt_data.items():
+                    result[str(k)] = self._convert_amulet_value(v)
+                return result
+            else:
+                return self._convert_amulet_value(nbt_data)
+        except Exception as e:
+            print(f"Error converting amulet-nbt: {e}")
+            return {}
+    
+    def _convert_amulet_value(self, value):
+        """Convert individual amulet-nbt value"""
+        try:
+            if hasattr(value, 'value'):
+                return self._convert_amulet_value(value.value)
+            elif hasattr(value, 'py_data'):
+                return value.py_data
+            elif hasattr(value, 'items') and callable(getattr(value, 'items')):
+                result = {}
+                for k, v in value.items():
+                    result[str(k)] = self._convert_amulet_value(v)
+                return result
+            elif isinstance(value, (list, tuple)):
+                return [self._convert_amulet_value(v) for v in value]
+            else:
+                return value
+        except Exception:
+            return str(value)
+    
+    def _convert_nbtlib_to_dict(self, nbt_data):
+        """Convert nbtlib data to Python dict"""
+        try:
+            if hasattr(nbt_data, 'root'):
+                return self._convert_nbtlib_value(nbt_data.root)
+            else:
+                return self._convert_nbtlib_value(nbt_data)
+        except Exception as e:
+            print(f"Error converting nbtlib: {e}")
+            return {}
+    
+    def _convert_nbtlib_value(self, value):
+        """Convert individual nbtlib value"""
+        try:
+            if hasattr(value, 'items') and callable(getattr(value, 'items')):
+                result = {}
+                for k, v in value.items():
+                    result[str(k)] = self._convert_nbtlib_value(v)
+                return result
+            elif isinstance(value, (list, tuple)):
+                return [self._convert_nbtlib_value(v) for v in value]
+            elif hasattr(value, 'value'):
+                return self._convert_nbtlib_value(value.value)
+            else:
+                return value
+        except Exception:
+            return str(value)
+    
+    def _parse_binary_nbt(self, data):
+        """Manual binary NBT parser sebagai fallback"""
+        try:
+            result = {}
+            pos = 0
+            
+            print(f"Manual parsing {len(data)} bytes...")
+            
+            # Skip header jika ada
+            if len(data) > 4:
+                # Coba skip gzip header
+                if data[:2] == b'\x1f\x8b':
+                    print("Detected gzipped data, skipping...")
+                    # Untuk gzipped data, kita perlu gunakan library
+                    return {}
                 
-                if pos > 0:
-                    try:
-                        value_pos = pos + len(field_bytes)
-                        value = self._extract_value_by_type(data, value_pos, field_type)
-                        if value is not None:
-                            result[field_name] = value
-                    except Exception:
-                        continue
+                # Coba skip NBT header
+                if data[:4] in [b'\x0A\x00\x00\x00', b'\x08\x00\x00\x00']:
+                    print("Detected NBT header, skipping...")
+                    pos = 4
             
-            # Try to parse compound fields (nested structures)
-            compound_fields = ['abilities', 'experiments', 'world_policies', 
-                             'MinimumCompatibleClientVersion', 'lastOpenedWithVersion']
+            # Parse NBT structure
+            while pos < len(data) - 10:  # Minimal length untuk key-value pair
+                # Cari string patterns (key names)
+                string_pattern = self._find_string_pattern(data, pos)
+                if string_pattern:
+                    key_name, key_pos = string_pattern
+                    pos = key_pos
+                    
+                    # Coba parse value setelah key
+                    value, new_pos = self._parse_value_at(data, pos)
+                    if value is not None:
+                        result[key_name] = value
+                        pos = new_pos
+                        print(f"Found key: {key_name} = {value}")
+                    else:
+                        pos += 1
+                else:
+                    pos += 1
             
-            for compound_name in compound_fields:
-                compound_bytes = compound_name.encode('utf-8')
-                pos = data.find(compound_bytes)
-                if pos > 0:
-                    try:
-                        # Try to parse as compound after the name
-                        value_pos = pos + len(compound_bytes)
-                        compound_data = self._try_parse_compound_at(data, value_pos)
-                        if compound_data:
-                            result[compound_name] = compound_data
-                            print(f"✅ Parsed compound: {compound_name}")
-                    except Exception as e:
-                        print(f"❌ Failed to parse compound {compound_name}: {e}")
-                        continue
-            
-            # Disable problematic auto-detection for now
-            # Focus on reliable parsing with known libraries
-            print("ℹ️ Using reliable NBT parsing only")
-            
-            print(f"Hybrid parser extracted {len(result)} fields from level.dat")
             return result
             
         except Exception as e:
-            print(f"Hybrid parser failed: {e}")
+            print(f"Binary parser error: {e}")
             return {}
     
-    def _extract_value_by_type(self, data, pos, field_type):
-        """Extract value dengan tipe yang diharapkan dari posisi data"""
+    def _find_string_pattern(self, data, start_pos):
+        """Find string pattern in binary data"""
         try:
-            if field_type == 'string':
-                # Cari string length (berbagai kemungkinan format)
-                for offset in [0, 1, 2, 3, 4]:
-                    try:
-                        if pos + offset + 2 <= len(data):
-                            str_len = struct.unpack('<H', data[pos+offset:pos+offset+2])[0]
-                            if 1 <= str_len <= 10000:  # Reasonable string length
-                                str_start = pos + offset + 2
+            # Look for printable ASCII strings
+            for pos in range(start_pos, min(start_pos + 200, len(data))):
+                if data[pos] >= 32 and data[pos] <= 126:  # Printable ASCII
+                    # Try to read string length
+                    if pos + 2 <= len(data):
+                        try:
+                            str_len = struct.unpack('<H', data[pos:pos+2])[0]
+                            if 1 <= str_len <= 100:  # Reasonable string length
+                                str_start = pos + 2
                                 if str_start + str_len <= len(data):
-                                    value = data[str_start:str_start+str_len].decode('utf-8', errors='replace')
-                                    if len(value.strip()) > 0:  # Non-empty string
-                                        return value
-                    except:
-                        continue
-                        
-            elif field_type == 'byte':
-                # Try different offsets for byte values
-                for offset in [0, 1, 2, 3, 4]:
-                    if pos + offset < len(data):
-                        value = data[pos + offset]
-                        if value in [0, 1]:  # Boolean byte values
-                            return value
-                        
-            elif field_type == 'int':
-                # Try different offsets for 4-byte integers
-                for offset in [0, 1, 2, 3, 4]:
-                    if pos + offset + 4 <= len(data):
-                        try:
-                            value = struct.unpack('<i', data[pos+offset:pos+offset+4])[0]
-                            if -2147483648 <= value <= 2147483647:  # Valid int range
-                                return value
+                                    key_name = data[str_start:str_start+str_len].decode('utf-8', errors='replace')
+                                    if key_name.isprintable() and len(key_name.strip()) > 0:
+                                        # Validasi bahwa ini adalah key yang valid
+                                        if any(char.isalpha() for char in key_name):
+                                            return key_name, str_start + str_len
                         except:
                             continue
+                    
+                    # Alternative: cari string tanpa length prefix
+                    if pos + 1 < len(data):
+                        try:
+                            # Cari sampai null terminator atau non-printable
+                            end_pos = pos
+                            while end_pos < len(data) and data[end_pos] >= 32 and data[end_pos] <= 126:
+                                end_pos += 1
                             
-            elif field_type == 'long':
-                # Try different offsets for 8-byte long values
-                for offset in [0, 1, 2, 3, 4, 8, 12]:
-                    if pos + offset + 8 <= len(data):
-                        try:
-                            value = struct.unpack('<q', data[pos+offset:pos+offset+8])[0]
-                            return value
+                            if end_pos > pos + 1:
+                                key_name = data[pos:end_pos].decode('utf-8', errors='replace')
+                                if len(key_name) >= 2 and any(char.isalpha() for char in key_name):
+                                    return key_name, end_pos
                         except:
                             continue
-                            
-            elif field_type == 'float':
-                # Try different offsets for 4-byte float values
-                for offset in [0, 1, 2, 3, 4]:
-                    if pos + offset + 4 <= len(data):
-                        try:
-                            value = struct.unpack('<f', data[pos+offset:pos+offset+4])[0]
-                            if not (value != value):  # Not NaN
-                                return value
-                        except:
-                            continue
-            
             return None
-            
         except Exception:
             return None
     
-    def _try_parse_compound_at(self, data, pos):
-        """Coba parse compound/array data di posisi tertentu"""
+    def _parse_value_at(self, data, pos):
+        """Parse NBT value at specific position"""
         try:
-            # Coba parse sebagai list integer (untuk version arrays)
+            if pos >= len(data):
+                return None, pos
+            
+            # Try to detect value type
+            byte_val = data[pos]
+            
+            # Byte value (0 or 1) - most common in Bedrock
+            if byte_val in [0, 1]:
+                return byte_val, pos + 1
+            
+            # Try to parse as integer (4 bytes)
             if pos + 4 <= len(data):
                 try:
-                    list_len = struct.unpack('<i', data[pos:pos+4])[0]
-                    if 1 <= list_len <= 10:  # Reasonable list length for version arrays
-                        pos += 4
-                        result = []
-                        for i in range(list_len):
-                            if pos + 4 <= len(data):
-                                value = struct.unpack('<i', data[pos:pos+4])[0]
-                                result.append(value)
-                                pos += 4
-                            else:
-                                break
-                        if len(result) == list_len:
-                            return result
+                    int_val = struct.unpack('<i', data[pos:pos+4])[0]
+                    # Validasi range yang masuk akal untuk Minecraft
+                    if -1000000 <= int_val <= 1000000:
+                        return int_val, pos + 4
                 except:
                     pass
             
-            # Coba parse sebagai compound dengan fields yang benar
-            result_dict = {}
+            # Try to parse as long (8 bytes)
+            if pos + 8 <= len(data):
+                try:
+                    long_val = struct.unpack('<q', data[pos:pos+8])[0]
+                    # Validasi range yang masuk akal
+                    if -1000000000 <= long_val <= 1000000000:
+                        return long_val, pos + 8
+                except:
+                    pass
             
-            # Look for abilities fields based on correct structure
-            abilities_fields = {
-                'attackmobs': 'byte',
-                'attackplayers': 'byte', 
-                'build': 'byte',
-                'doorsandswitches': 'byte',
-                'flying': 'byte',
-                'instabuild': 'byte',
-                'invulnerable': 'byte',
-                'lightning': 'byte',
-                'mayfly': 'byte',
-                'mine': 'byte',
-                'op': 'byte',
-                'opencontainers': 'byte',
-                'teleport': 'byte',
-                'flySpeed': 'float',
-                'walkSpeed': 'float',
-                'verticalFlySpeed': 'float'
-            }
+            # Try to parse as float (4 bytes)
+            if pos + 4 <= len(data):
+                try:
+                    float_val = struct.unpack('<f', data[pos:pos+4])[0]
+                    if not (float_val != float_val) and -1000 <= float_val <= 1000:  # Not NaN and reasonable range
+                        return float_val, pos + 4
+                except:
+                    pass
             
-            # Look for experiments fields
-            experiments_fields = {
-                'data_driven_biomes': 'byte',
-                'experiments_ever_used': 'byte',
-                'gametest': 'byte',
-                'jigsaw_structures': 'byte',
-                'saved_with_toggled_experiments': 'byte'
-            }
+            # Try to parse as short (2 bytes)
+            if pos + 2 <= len(data):
+                try:
+                    short_val = struct.unpack('<h', data[pos:pos+2])[0]
+                    if -32768 <= short_val <= 32767:
+                        return short_val, pos + 2
+                except:
+                    pass
             
-            # Search for fields in the compound
-            search_range = min(pos + 500, len(data))  # Look in a reasonable range
+            return None, pos + 1
             
-            for field, field_type in abilities_fields.items():
-                field_bytes = field.encode('utf-8')
-                field_pos = data.find(field_bytes, pos, search_range)
-                if field_pos > 0:
-                    value_pos = field_pos + len(field_bytes)
-                    if field_type == 'byte':
-                        # Try to get byte value
-                        for offset in [0, 1, 2, 3]:
-                            if value_pos + offset < len(data):
-                                value = data[value_pos + offset]
-                                if value in [0, 1]:
-                                    result_dict[field] = value
-                                    break
-                    elif field_type == 'float':
-                        # Try to get float value
-                        for offset in [0, 1, 2, 3, 4]:
-                            if value_pos + offset + 4 <= len(data):
-                                try:
-                                    value = struct.unpack('<f', data[value_pos+offset:value_pos+offset+4])[0]
-                                    if not (value != value):  # Not NaN
-                                        result_dict[field] = value
-                                        break
-                                except:
-                                    continue
-            
-            # Search for experiments fields
-            for field, field_type in experiments_fields.items():
-                field_bytes = field.encode('utf-8')
-                field_pos = data.find(field_bytes, pos, search_range)
-                if field_pos > 0:
-                    value_pos = field_pos + len(field_bytes)
-                    if field_type == 'byte':
-                        for offset in [0, 1, 2, 3]:
-                            if value_pos + offset < len(data):
-                                value = data[value_pos + offset]
-                                if value in [0, 1]:
-                                    result_dict[field] = value
-                                    break
-            
-            return result_dict if len(result_dict) > 0 else None
-            
-        except Exception as e:
-            print(f"Error parsing compound: {e}")
-            return None
+        except Exception:
+            return None, pos + 1
+
+    # Legacy methods for backward compatibility
+    def _extract_value_by_type(self, data, pos, field_type):
+        """Legacy method - kept for compatibility"""
+        return self._parse_value_at(data, pos)[0]
+    
+    def _try_parse_compound_at(self, data, pos):
+        """Legacy method - kept for compatibility"""
+        return self._parse_binary_nbt(data[pos:pos+500])

@@ -220,82 +220,17 @@ class NBTEditor(QMainWindow):
                     len(first_8_bytes) >= 4 and first_8_bytes[0] in [0x08, 0x0A]  # NBT compound/list tag
                 )
                 
-                nbt_data = None
+                # Gunakan dynamic parser yang baru untuk mendeteksi semua key
+                print(f"Membaca {level_dat} dengan dynamic parser...")
+                nbt_data = self.bedrock_parser.parse_bedrock_level_dat_manual(level_dat)
                 
-                # Coba baca dengan amulet-nbt untuk Bedrock (jika tersedia)
-                if is_bedrock and AMULET_AVAILABLE:
-                    try:
-                        print(f"Membaca {level_dat} sebagai Bedrock format dengan amulet-nbt...")
-                        raw_nbt = amulet_load(level_dat)
-                        print(f"Tipe raw_nbt: {type(raw_nbt)}")
-                        print(f"Atribut raw_nbt: {dir(raw_nbt)}")
-                        print(f"Raw NBT repr: {repr(raw_nbt)}")
-                        
-                        if hasattr(raw_nbt, 'compound'):
-                            print(f"Compound ada, tipe: {type(raw_nbt.compound)}")
-                            print(f"Compound keys: {list(raw_nbt.compound.keys()) if hasattr(raw_nbt.compound, 'keys') else 'no keys'}")
-                        
-                        nbt_data = nbt_to_dict(raw_nbt)
-                        print(f"Hasil konversi nbt_to_dict: {len(nbt_data) if isinstance(nbt_data, dict) else 'not dict'} keys")
-                        if isinstance(nbt_data, dict) and len(nbt_data) > 0:
-                            print(f"Keys hasil konversi: {list(nbt_data.keys())[:10]}")  # Tampilkan 10 key pertama
-                    except Exception as e:
-                        print(f"amulet-nbt gagal: {e}, mencoba nbtlib...")
-                        # Fallback ke nbtlib
-                
-                # Jika amulet-nbt tidak tersedia atau gagal, gunakan nbtlib
-                if not AMULET_AVAILABLE or nbt_data is None:
-                    try:
-                        nbt_obj = nbtlib.load(level_dat)
-                        nbt_data = getattr(nbt_obj, 'root', nbt_obj)
-                    except Exception:
-                        nbt_obj = nbtlib.load(level_dat, gzipped=True)
-                        nbt_data = getattr(nbt_obj, 'root', nbt_obj)
-                else:
-                    # Untuk Java Edition, gunakan nbtlib
-                    try:
-                        print(f"Membaca {level_dat} sebagai Java format dengan nbtlib...")
-                        nbt_obj = nbtlib.load(level_dat, gzipped=True)
-                        nbt_data = getattr(nbt_obj, 'root', nbt_obj)
-                    except Exception:
-                        try:
-                            nbt_obj = nbtlib.load(level_dat)
-                            nbt_data = getattr(nbt_obj, 'root', nbt_obj)
-                        except Exception as e:
-                            # Jika gagal, coba amulet-nbt sebagai fallback (jika tersedia)
-                            if AMULET_AVAILABLE:
-                                print(f"nbtlib gagal: {e}, mencoba amulet-nbt...")
-                                try:
-                                    nbt_data = amulet_load(level_dat)
-                                    nbt_data = nbt_to_dict(nbt_data)
-                                except Exception as amulet_error:
-                                    print(f"amulet-nbt juga gagal: {amulet_error}")
-                            else:
-                                print(f"nbtlib gagal: {e}, amulet-nbt tidak tersedia")
-                
-                # Jika kedua parser standar gagal, coba manual parser
-                if nbt_data is None or (isinstance(nbt_data, dict) and len(nbt_data) == 0):
-                    print("Parser standar gagal, mencoba manual parser untuk Bedrock...")
-                    manual_data = self.bedrock_parser.parse_bedrock_level_dat_manual(level_dat)
-                    if manual_data and len(manual_data) > 0:
-                        nbt_data = manual_data
-                        print(f"Manual parser berhasil mengekstrak {len(manual_data)} fields")
-                    else:
-                        raise Exception("Semua parser gagal membaca level.dat")
-                
-                if nbt_data is None:
-                    raise Exception("File level.dat tidak dapat dibaca dengan metode apapun.")
+                if not nbt_data or len(nbt_data) == 0:
+                    raise Exception("Dynamic parser gagal membaca level.dat")
                 
                 # Validasi bahwa data berisi struktur level.dat yang benar
                 if isinstance(nbt_data, dict):
-                    expected_keys = ['LevelName', 'GameType', 'Difficulty', 'Generator']
-                    found_keys = [key for key in expected_keys if key in nbt_data]
-                    print(f"Ditemukan {len(found_keys)} key level.dat yang diharapkan: {found_keys}")
-                    if len(found_keys) == 0:
-                        # Cek key alternatif dari manual parser
-                        alt_keys = ['LevelName', 'InventoryVersion', 'Platform']  
-                        found_alt = [key for key in alt_keys if key in nbt_data]
-                        print(f"Ditemukan {len(found_alt)} key alternatif: {found_alt}")
+                    print(f"✅ Berhasil mendeteksi {len(nbt_data)} keys dalam level.dat")
+                    print(f"Keys yang ditemukan: {list(nbt_data.keys())}")
                     
                 self.nbt_data = nbt_data
                 
