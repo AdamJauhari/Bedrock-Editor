@@ -39,6 +39,10 @@ class BedrockParser:
             
             print(f"Parsing {len(data)} bytes from {file_path}")
             
+            # Check if file is empty or too small
+            if len(data) < 10:
+                raise Exception(f"File terlalu kecil ({len(data)} bytes). File mungkin kosong atau rusak.")
+            
             # Try different parsing methods in order of preference
             result = {}
             
@@ -71,6 +75,8 @@ class BedrockParser:
                             return result
                         else:
                             print(f"⚠️  nbtlib returned only {len(result)} keys, trying next method")
+                    else:
+                        print(f"⚠️  nbtlib returned empty result, trying next method")
                 except Exception as e:
                     print(f"❌ nbtlib (gzipped={gzipped}) failed: {e}")
                     import traceback
@@ -82,6 +88,22 @@ class BedrockParser:
             if result and len(result) > 0:
                 print(f"✅ Manual parser successful: {len(result)} keys detected")
                 return result
+            
+            # Method 4: Try nbtlib with root access
+            try:
+                print("Trying nbtlib with root access...")
+                nbt_data = nbtlib.load(file_path, gzipped=False)
+                if hasattr(nbt_data, 'root') and nbt_data.root:
+                    print(f"Found root data: {type(nbt_data.root)}")
+                    # Try to access root directly
+                    if hasattr(nbt_data.root, 'items'):
+                        result = {}
+                        for k, v in nbt_data.root.items():
+                            result[str(k)] = v
+                        print(f"✅ nbtlib root access successful: {len(result)} keys detected")
+                        return result
+            except Exception as e:
+                print(f"❌ nbtlib root access failed: {e}")
             
             print("❌ All parsing methods failed")
             return {}
@@ -117,6 +139,39 @@ class BedrockParser:
     def _convert_amulet_value(self, value):
         """Convert individual amulet-nbt value with proper type preservation"""
         try:
+            # Handle NBT tag objects
+            if hasattr(value, 'tag_id'):
+                # Extract actual value from NBT tag
+                if hasattr(value, 'value'):
+                    return self._convert_amulet_value(value.value)
+                elif hasattr(value, 'py_data'):
+                    return value.py_data
+                elif hasattr(value, 'py_int'):
+                    return value.py_int
+                elif hasattr(value, 'py_float'):
+                    return value.py_float
+                elif hasattr(value, 'py_str'):
+                    return value.py_str
+                elif hasattr(value, 'py_bool'):
+                    return value.py_bool
+                else:
+                    # Fallback: try to convert to string and extract value
+                    str_value = str(value)
+                    if '(' in str_value and ')' in str_value:
+                        # Extract value from format like "Byte(1)" or "Int(42)"
+                        try:
+                            actual_value = str_value.split('(')[1].split(')')[0]
+                            # Convert to appropriate type
+                            if '.' in actual_value:
+                                return float(actual_value)
+                            elif actual_value.lower() in ['true', 'false']:
+                                return actual_value.lower() == 'true'
+                            else:
+                                return int(actual_value)
+                        except:
+                            pass
+                    return str_value
+            
             if hasattr(value, 'value'):
                 return self._convert_amulet_value(value.value)
             elif hasattr(value, 'py_data'):
@@ -141,13 +196,19 @@ class BedrockParser:
             # Handle nbtlib.File objects
             if hasattr(nbt_data, 'root'):
                 print(f"Found root attribute: {nbt_data.root}")
-                return self._convert_nbtlib_value(nbt_data.root)
+                result = self._convert_nbtlib_value(nbt_data.root)
+                print(f"Converted root result type: {type(result)}")
+                return result
             elif hasattr(nbt_data, 'items'):
                 print(f"Data has items method, converting directly")
-                return self._convert_nbtlib_value(nbt_data)
+                result = self._convert_nbtlib_value(nbt_data)
+                print(f"Converted items result type: {type(result)}")
+                return result
             else:
                 print(f"No root or items found, trying direct conversion")
-                return self._convert_nbtlib_value(nbt_data)
+                result = self._convert_nbtlib_value(nbt_data)
+                print(f"Converted direct result type: {type(result)}")
+                return result
         except Exception as e:
             print(f"Error converting nbtlib: {e}")
             import traceback
@@ -158,6 +219,63 @@ class BedrockParser:
         """Convert individual nbtlib value with proper type preservation"""
         try:
             print(f"Converting value: {type(value)} - {value}")
+            
+            # Handle NBT tag objects (nbtlib.tag.*)
+            if hasattr(value, 'tag_id'):
+                # Check if this is a compound tag (dictionary-like)
+                if hasattr(value, 'items') and callable(getattr(value, 'items')):
+                    print(f"Converting NBT compound tag with {len(list(value.items()))} items")
+                    result = {}
+                    for k, v in value.items():
+                        print(f"Converting compound key: {k} -> {type(v)}")
+                        result[str(k)] = self._convert_nbtlib_value(v)
+                    return result
+                # Check if this is a list tag
+                elif isinstance(value, (list, tuple)) or (hasattr(value, '__iter__') and hasattr(value, '__len__')):
+                    print(f"Converting NBT list tag with {len(value)} items")
+                    return [self._convert_nbtlib_value(v) for v in value]
+                # Extract actual value from primitive NBT tag
+                elif hasattr(value, 'value'):
+                    actual_value = value.value
+                    print(f"Extracted NBT tag value: {actual_value}")
+                    return actual_value
+                elif hasattr(value, 'py_data'):
+                    actual_value = value.py_data
+                    print(f"Extracted NBT tag py_data: {actual_value}")
+                    return actual_value
+                elif hasattr(value, 'py_int'):
+                    actual_value = value.py_int
+                    print(f"Extracted NBT tag py_int: {actual_value}")
+                    return actual_value
+                elif hasattr(value, 'py_float'):
+                    actual_value = value.py_float
+                    print(f"Extracted NBT tag py_float: {actual_value}")
+                    return actual_value
+                elif hasattr(value, 'py_str'):
+                    actual_value = value.py_str
+                    print(f"Extracted NBT tag py_str: {actual_value}")
+                    return actual_value
+                elif hasattr(value, 'py_bool'):
+                    actual_value = value.py_bool
+                    print(f"Extracted NBT tag py_bool: {actual_value}")
+                    return actual_value
+                else:
+                    # Fallback: try to convert to string and extract value
+                    str_value = str(value)
+                    if '(' in str_value and ')' in str_value:
+                        # Extract value from format like "Byte(1)" or "Int(42)"
+                        try:
+                            actual_value = str_value.split('(')[1].split(')')[0]
+                            # Convert to appropriate type
+                            if '.' in actual_value:
+                                return float(actual_value)
+                            elif actual_value.lower() in ['true', 'false']:
+                                return actual_value.lower() == 'true'
+                            else:
+                                return int(actual_value)
+                        except:
+                            pass
+                    return str_value
             
             if hasattr(value, 'items') and callable(getattr(value, 'items')):
                 print(f"Converting dict-like object with {len(list(value.items()))} items")
@@ -531,94 +649,457 @@ class BedrockParser:
             print(f"Error parsing tag value type {tag_type}: {e}")
             return None, pos + 1
     
-    def _organize_compound_structures(self, flat_result):
-        """Organize flat keys into proper compound structures - dynamically detect compounds"""
+    def save_nbt_data_manual_with_type_info(self, data, file_path, type_info=None, debug_type_detection=False):
+        """Save NBT data using manual writer with preserved type information"""
         try:
-            organized = {}
+            print(f"💾 Manual saving to: {file_path} with type preservation")
             
-            # Dynamically detect compound structures based on key patterns
-            compound_groups = {}
+            # Enable debug mode if requested
+            self._debug_type_detection = debug_type_detection
             
-            # Process each key to group related keys
-            for key, value in flat_result.items():
-                key_str = str(key)
-                
-                # Detect compound groups based on common patterns
-                if key_str.endswith('Speed') or key_str in ['attackmobs', 'attackplayers', 'build', 'doorsandswitches', 'flying', 'instabuild', 'invulnerable', 'lightning', 'mayfly', 'mine', 'op', 'opencontainers', 'teleport']:
-                    group_name = 'abilities'
-                elif 'experiment' in key_str.lower() or key_str in ['data_driven_biomes', 'gametest', 'jigsaw_structures', 'creator_cameras', 'creator_features', 'villager_trades_rebalance']:
-                    group_name = 'experiments'
-                elif 'version' in key_str.lower() and isinstance(value, list):
-                    # Keep version arrays as-is
-                    organized[key_str] = value
-                    continue
-                else:
-                    # Keep as top-level key
-                    organized[key_str] = value
-                    continue
-                
-                # Add to compound group
-                if group_name not in compound_groups:
-                    compound_groups[group_name] = {}
-                compound_groups[group_name][key_str] = value
+            # Store type info for use in writing
+            self._preserved_type_info = type_info or {}
             
-            # Add compound groups to organized result
-            for group_name, group_data in compound_groups.items():
-                if len(group_data) > 0:
-                    organized[group_name] = group_data
+            # Create binary data with type preservation
+            binary_data = self._write_nbt_compound_with_type_preservation(data)
             
-            return organized
+            # Write to file
+            with open(file_path, 'wb') as f:
+                f.write(binary_data)
+            
+            print(f"✅ Manual save successful: {len(binary_data)} bytes written")
+            return True
             
         except Exception as e:
-            print(f"Error organizing compound structures: {e}")
+            print(f"❌ Manual save failed: {e}")
             import traceback
             traceback.print_exc()
-            return flat_result
+            return False
     
-    def _try_parse_value_at(self, data, pos):
-        """Try to parse a value at a specific position"""
+    def save_nbt_data_manual(self, data, file_path, debug_type_detection=False):
+        """Save NBT data using manual writer with automatic type detection"""
         try:
-            if pos >= len(data):
-                return None, pos
+            print(f"💾 Manual saving to: {file_path}")
             
-            # Try different value types
-            value_types = [
-                (1, 'b'),   # byte
-                (2, 'h'),   # short
-                (4, 'i'),   # int
-                (8, 'q'),   # long
-                (4, 'f'),   # float
+            # Enable debug mode if requested
+            self._debug_type_detection = debug_type_detection
+            
+            # Create binary data with automatic type detection
+            binary_data = self._write_nbt_compound_with_types(data)
+            
+            # Write to file
+            with open(file_path, 'wb') as f:
+                f.write(binary_data)
+            
+            print(f"✅ Manual save successful: {len(binary_data)} bytes written")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Manual save failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
+    def _write_nbt_compound_with_type_preservation(self, data):
+        """Write NBT compound to binary data with type preservation"""
+        try:
+            # Start with compound tag
+            result = bytearray()
+            result.append(self.TAG_COMPOUND)  # Compound tag
+            
+            # Write empty name (root compound)
+            result.extend(struct.pack('>H', 0))  # Name length = 0
+            
+            # Write compound contents with type preservation
+            compound_data = self._write_compound_contents_with_type_preservation(data)
+            result.extend(compound_data)
+            
+            # Add end tag
+            result.append(self.TAG_END)
+            
+            return bytes(result)
+            
+        except Exception as e:
+            print(f"❌ Error writing NBT compound: {e}")
+            raise
+    
+    def _write_nbt_compound_with_types(self, data):
+        """Write NBT compound to binary data with proper type detection"""
+        try:
+            # Start with compound tag
+            result = bytearray()
+            result.append(self.TAG_COMPOUND)  # Compound tag
+            
+            # Write empty name (root compound)
+            result.extend(struct.pack('>H', 0))  # Name length = 0
+            
+            # Write compound contents with proper type detection
+            compound_data = self._write_compound_contents_with_types(data)
+            result.extend(compound_data)
+            
+            # Add end tag
+            result.append(self.TAG_END)
+            
+            return bytes(result)
+            
+        except Exception as e:
+            print(f"❌ Error writing NBT compound: {e}")
+            raise
+    
+    def _write_nbt_compound(self, data):
+        """Write NBT compound to binary data"""
+        try:
+            # Start with compound tag
+            result = bytearray()
+            result.append(self.TAG_COMPOUND)  # Compound tag
+            
+            # Write empty name (root compound)
+            result.extend(struct.pack('>H', 0))  # Name length = 0
+            
+            # Write compound contents
+            compound_data = self._write_compound_contents(data)
+            result.extend(compound_data)
+            
+            # Add end tag
+            result.append(self.TAG_END)
+            
+            return bytes(result)
+            
+        except Exception as e:
+            print(f"❌ Error writing NBT compound: {e}")
+            raise
+    
+    def _write_compound_contents_with_type_preservation(self, data):
+        """Write compound contents with type preservation"""
+        result = bytearray()
+        
+        for key, value in data.items():
+            try:
+                # Use preserved type info if available
+                tag_type = self._get_tag_type_with_preservation(key, value)
+                
+                # Debug info for type detection
+                if hasattr(self, '_debug_type_detection') and self._debug_type_detection:
+                    print(f"🔧 Type-preserved '{key}' ({value}) as type {tag_type}")
+                
+                result.append(tag_type)
+                
+                # Write key name
+                key_bytes = key.encode('utf-8')
+                result.extend(struct.pack('>H', len(key_bytes)))
+                result.extend(key_bytes)
+                
+                # Write value
+                value_data = self._write_tag_value(value, tag_type)
+                result.extend(value_data)
+                
+            except Exception as e:
+                print(f"❌ Error writing key '{key}' with value {value}: {e}")
+                print(f"❌ Key type: {type(key)}, Value type: {type(value)}")
+                raise
+        
+        return bytes(result)
+    
+    def _write_compound_contents_with_types(self, data):
+        """Write compound contents with automatic type detection"""
+        result = bytearray()
+        
+        for key, value in data.items():
+            try:
+                # Auto-detect tag type
+                tag_type = self._get_tag_type_improved(key, value)
+                
+                # Debug info for type detection
+                if hasattr(self, '_debug_type_detection') and self._debug_type_detection:
+                    print(f"🔍 Auto-detected '{key}' ({value}) as type {tag_type}")
+                
+                result.append(tag_type)
+                
+                # Write key name
+                key_bytes = key.encode('utf-8')
+                result.extend(struct.pack('>H', len(key_bytes)))
+                result.extend(key_bytes)
+                
+                # Write value
+                value_data = self._write_tag_value(value, tag_type)
+                result.extend(value_data)
+                
+            except Exception as e:
+                print(f"❌ Error writing key '{key}' with value {value}: {e}")
+                print(f"❌ Key type: {type(key)}, Value type: {type(value)}")
+                raise
+        
+        return bytes(result)
+    
+    def _write_compound_contents(self, data):
+        """Write compound contents"""
+        result = bytearray()
+        
+        for key, value in data.items():
+            # Write tag type
+            tag_type = self._get_tag_type(value)
+            result.append(tag_type)
+            
+            # Write key name
+            key_bytes = key.encode('utf-8')
+            result.extend(struct.pack('>H', len(key_bytes)))
+            result.extend(key_bytes)
+            
+            # Write value
+            value_data = self._write_tag_value(value, tag_type)
+            result.extend(value_data)
+        
+        return bytes(result)
+    
+    def _get_tag_type_improved(self, key, value):
+        """Get NBT tag type with automatic detection based on value and key patterns"""
+        
+        # Auto-detect boolean based on value and key patterns
+        if self._is_boolean_value(key, value):
+            return self.TAG_BYTE
+        
+        # Auto-detect string based on value type
+        if isinstance(value, str):
+            return self.TAG_STRING
+        
+        # Auto-detect float based on value type and key patterns
+        if self._is_float_value(key, value):
+            return self.TAG_FLOAT
+        
+        # Auto-detect integer/long based on value type and range
+        if isinstance(value, int):
+            if abs(value) > 2147483647:
+                return self.TAG_LONG
+            else:
+                return self.TAG_INT
+        
+        # Auto-detect other types
+        if isinstance(value, bool):
+            return self.TAG_BYTE
+        elif isinstance(value, list):
+            return self.TAG_LIST
+        elif isinstance(value, dict):
+            return self.TAG_COMPOUND
+        else:
+            return self.TAG_STRING  # Default to string
+    
+    def _is_boolean_value(self, key, value):
+        """Auto-detect if value should be boolean based on patterns"""
+        # Check if value is 0 or 1 (common boolean values)
+        if isinstance(value, int) and value in [0, 1]:
+            # Check key patterns that suggest boolean
+            key_lower = key.lower()
+            boolean_patterns = [
+                'enabled', 'disabled', 'on', 'off', 'true', 'false',
+                'allow', 'deny', 'show', 'hide', 'enable', 'disable',
+                'active', 'inactive', 'visible', 'invisible',
+                'do', 'dont', 'can', 'cannot', 'has', 'is', 'are'
             ]
             
-            for size, fmt in value_types:
-                if pos + size <= len(data):
-                    try:
-                        # Try both endianness
-                        for endian in ['>', '<']:
-                            try:
-                                value = struct.unpack(f'{endian}{fmt}', data[pos:pos+size])[0]
-                                # Validate reasonable ranges
-                                if fmt in ['b', 'h', 'i'] and -1000000 <= value <= 1000000:
-                                    return value, pos + size
-                                elif fmt == 'q' and -1000000000000 <= value <= 1000000000000:
-                                    return value, pos + size
-                                elif fmt == 'f' and -1000 <= value <= 1000 and value == value:  # Not NaN
-                                    return value, pos + size
-                            except:
-                                continue
-                    except:
-                        continue
+            # Check if key contains boolean patterns
+            for pattern in boolean_patterns:
+                if pattern in key_lower:
+                    return True
             
-            return None, pos + 1
-            
-        except Exception:
-            return None, pos + 1
-
-    # Legacy methods for backward compatibility
-    def _extract_value_by_type(self, data, pos, field_type):
-        """Legacy method - kept for compatibility"""
-        return self._parse_tag_value(data, pos, field_type)[0]
+            # Check if key starts with common boolean prefixes
+            boolean_prefixes = ['is', 'has', 'can', 'do', 'show', 'allow']
+            for prefix in boolean_prefixes:
+                if key_lower.startswith(prefix):
+                    return True
+        
+        return False
     
-    def _try_parse_compound_at(self, data, pos):
-        """Legacy method - kept for compatibility"""
-        return self._parse_compound(data, pos)[0]
+    def _get_tag_type_with_preservation(self, key, value):
+        """Get NBT tag type with type preservation and nested key support"""
+        # Check if we have preserved type info for this key
+        if hasattr(self, '_preserved_type_info') and key in self._preserved_type_info:
+            type_info = self._preserved_type_info[key]
+            original_type = type_info['original_type']
+            is_nested = type_info.get('is_nested', False)
+            is_experiment = type_info.get('is_experiment', False)
+            
+            print(f"🔧 Using preserved type for '{key}': {original_type} (nested: {is_nested}, experiment: {is_experiment})")
+            
+            # Map Python types to NBT tag types with auto detection
+            if original_type == bool:
+                return self.TAG_BYTE
+            elif original_type == int:
+                # Auto detect if it should be byte (0-1 range) or int
+                if isinstance(value, int) and 0 <= value <= 1:
+                    return self.TAG_BYTE
+                else:
+                    return self.TAG_INT
+            elif original_type == float:
+                return self.TAG_FLOAT
+            elif original_type == str:
+                return self.TAG_STRING
+            elif original_type == list:
+                return self.TAG_LIST
+            elif original_type == dict:
+                return self.TAG_COMPOUND
+        
+        # Check for nested keys (for experiments dictionary)
+        if hasattr(self, '_preserved_type_info'):
+            for stored_key, type_info in self._preserved_type_info.items():
+                if stored_key.startswith(key + '.') or key.startswith(stored_key + '.'):
+                    original_type = type_info['original_type']
+                    is_experiment = type_info.get('is_experiment', False)
+                    print(f"🔧 Using nested preserved type for '{key}': {original_type} (experiment: {is_experiment})")
+                    
+                    if original_type == bool:
+                        return self.TAG_BYTE
+                    elif original_type == int:
+                        if isinstance(value, int) and 0 <= value <= 1:
+                            return self.TAG_BYTE
+                        else:
+                            return self.TAG_INT
+                    elif original_type == float:
+                        return self.TAG_FLOAT
+                    elif original_type == str:
+                        return self.TAG_STRING
+                    elif original_type == list:
+                        return self.TAG_LIST
+                    elif original_type == dict:
+                        return self.TAG_COMPOUND
+        
+        # Fallback to auto detection if no preserved type info
+        return self._get_tag_type_improved(key, value)
+    
+    def _is_float_value(self, key, value):
+        """Auto-detect if value should be float based on patterns"""
+        # If value is already float, use it
+        if isinstance(value, float):
+            return True
+        
+        # If value is int, check if it should be float based on key patterns
+        if isinstance(value, int):
+            key_lower = key.lower()
+            float_patterns = [
+                'level', 'speed', 'rate', 'percentage', 'ratio',
+                'scale', 'size', 'distance', 'position', 'coordinate',
+                'time', 'duration', 'interval', 'frequency',
+                'temperature', 'pressure', 'density', 'weight',
+                'lightning', 'rain', 'random', 'chance', 'probability'
+            ]
+            
+            # Check if key contains float patterns
+            for pattern in float_patterns:
+                if pattern in key_lower:
+                    return True
+        
+        return False
+    
+    def _get_tag_type(self, value):
+        """Get NBT tag type for value"""
+        if isinstance(value, bool):
+            return self.TAG_BYTE
+        elif isinstance(value, int):
+            # Check if it's actually a boolean (0 or 1)
+            if value in [0, 1]:
+                return self.TAG_BYTE
+            elif abs(value) > 2147483647:
+                return self.TAG_LONG
+            else:
+                return self.TAG_INT
+        elif isinstance(value, float):
+            return self.TAG_FLOAT
+        elif isinstance(value, str):
+            return self.TAG_STRING
+        elif isinstance(value, list):
+            return self.TAG_LIST
+        elif isinstance(value, dict):
+            return self.TAG_COMPOUND
+        else:
+            return self.TAG_STRING  # Default to string
+    
+    def _write_tag_value(self, value, tag_type):
+        """Write tag value based on type"""
+        result = bytearray()
+        
+        try:
+            if tag_type == self.TAG_BYTE:
+                result.extend(struct.pack('>b', int(value)))
+            elif tag_type == self.TAG_SHORT:
+                result.extend(struct.pack('>h', int(value)))
+            elif tag_type == self.TAG_INT:
+                # Check if value is within int range
+                int_value = int(value)
+                if abs(int_value) > 2147483647:
+                    # Value is too large for int, use long instead
+                    print(f"⚠️ Value {int_value} too large for int, using long")
+                    result.extend(struct.pack('>q', int_value))
+                else:
+                    result.extend(struct.pack('>i', int_value))
+            elif tag_type == self.TAG_LONG:
+                result.extend(struct.pack('>q', int(value)))
+            elif tag_type == self.TAG_FLOAT:
+                result.extend(struct.pack('>f', float(value)))
+            elif tag_type == self.TAG_DOUBLE:
+                result.extend(struct.pack('>d', float(value)))
+            elif tag_type == self.TAG_STRING:
+                value_bytes = str(value).encode('utf-8')
+                result.extend(struct.pack('>H', len(value_bytes)))
+                result.extend(value_bytes)
+            elif tag_type == self.TAG_LIST:
+                result.extend(self._write_list(value))
+            elif tag_type == self.TAG_COMPOUND:
+                result.extend(self._write_compound_contents(value))
+                result.append(self.TAG_END)
+            elif tag_type == self.TAG_BYTE_ARRAY:
+                if isinstance(value, list):
+                    result.extend(struct.pack('>i', len(value)))
+                    for item in value:
+                        result.extend(struct.pack('>b', int(item)))
+                else:
+                    result.extend(struct.pack('>i', 0))
+            elif tag_type == self.TAG_INT_ARRAY:
+                if isinstance(value, list):
+                    result.extend(struct.pack('>i', len(value)))
+                    for item in value:
+                        result.extend(struct.pack('>i', int(item)))
+                else:
+                    result.extend(struct.pack('>i', 0))
+            elif tag_type == self.TAG_LONG_ARRAY:
+                if isinstance(value, list):
+                    result.extend(struct.pack('>i', len(value)))
+                    for item in value:
+                        result.extend(struct.pack('>q', int(item)))
+                else:
+                    result.extend(struct.pack('>i', 0))
+            else:
+                # Default to string
+                value_bytes = str(value).encode('utf-8')
+                result.extend(struct.pack('>H', len(value_bytes)))
+                result.extend(value_bytes)
+            
+            return bytes(result)
+            
+        except Exception as e:
+            print(f"❌ Error writing tag value {value} (type {tag_type}): {e}")
+            print(f"❌ Value type: {type(value)}")
+            raise
+    
+    def _write_list(self, value_list):
+        """Write list tag"""
+        result = bytearray()
+        
+        if not value_list:
+            # Empty list
+            result.append(self.TAG_END)  # List type
+            result.extend(struct.pack('>i', 0))  # List length
+        else:
+            # Get type from first element
+            list_type = self._get_tag_type(value_list[0])
+            result.append(list_type)
+            result.extend(struct.pack('>i', len(value_list)))
+            
+            # Write list items
+            for item in value_list:
+                item_data = self._write_tag_value(item, list_type)
+                result.extend(item_data)
+        
+        return bytes(result)
+    
+
+
+

@@ -3,6 +3,39 @@ import struct
 def nbt_to_dict(nbt, depth=0):
     """Konversi tag amulet-nbt ke dict Python untuk Bedrock level.dat dengan proper type handling"""
     try:
+        # Handle NBT tag objects (nbtlib.tag.*)
+        if hasattr(nbt, 'tag_id'):
+            # Extract actual value from NBT tag
+            if hasattr(nbt, 'value'):
+                return nbt_to_dict(nbt.value, depth+1)
+            elif hasattr(nbt, 'py_data'):
+                return nbt.py_data
+            elif hasattr(nbt, 'py_int'):
+                return nbt.py_int
+            elif hasattr(nbt, 'py_float'):
+                return nbt.py_float
+            elif hasattr(nbt, 'py_str'):
+                return nbt.py_str
+            elif hasattr(nbt, 'py_bool'):
+                return nbt.py_bool
+            else:
+                # Fallback: try to convert to string and extract value
+                str_value = str(nbt)
+                if '(' in str_value and ')' in str_value:
+                    # Extract value from format like "Byte(1)" or "Int(42)"
+                    try:
+                        actual_value = str_value.split('(')[1].split(')')[0]
+                        # Convert to appropriate type
+                        if '.' in actual_value:
+                            return float(actual_value)
+                        elif actual_value.lower() in ['true', 'false']:
+                            return actual_value.lower() == 'true'
+                        else:
+                            return int(actual_value)
+                    except:
+                        pass
+                return str_value
+        
         # Handle NamedTag Bedrock (level.dat root structure)
         if hasattr(nbt, 'compound'):
             return nbt_to_dict(nbt.compound, depth+1)
@@ -49,6 +82,14 @@ def nbt_to_dict(nbt, depth=0):
 
 def get_nbt_value_display(value):
     """Menentukan format tampilan value untuk NBT dengan proper type formatting"""
+    # Handle NBT tag objects (nbtlib tags)
+    if hasattr(value, 'tag_id'):
+        # Extract the actual value from NBT tag
+        if hasattr(value, 'value'):
+            return str(value.value)
+        else:
+            return str(value)
+    
     if isinstance(value, dict):
         return f"{len(value)} entries"
     elif isinstance(value, list):
@@ -64,26 +105,7 @@ def get_nbt_value_display(value):
     else:
         return str(value)
 
-def format_value_for_json(value):
-    """Format value untuk JSON output sesuai dengan spesifikasi user"""
-    if isinstance(value, dict):
-        return value
-    elif isinstance(value, list):
-        return value
-    elif isinstance(value, bool):
-        return f"{int(value)}b"  # Format as 0b or 1b
-    elif isinstance(value, int):
-        # Check if it's a large number that should be formatted as long
-        if abs(value) > 2147483647:  # Max 32-bit signed int
-            return f"{value}L"
-        else:
-            return value  # Keep integers as-is, don't convert 0/1 to boolean format
-    elif isinstance(value, float):
-        return f"{value}f"  # Format as float with f suffix
-    elif isinstance(value, str):
-        return value  # Keep as string
-    else:
-        return str(value)
+
 
 def get_value_type_icon(value):
     """Get icon type for value display"""

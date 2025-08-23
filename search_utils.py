@@ -136,15 +136,18 @@ class SearchUtils:
             
             self.search_status.setText(f"✗ Tidak ada hasil untuk '{search_text}' - {len(all_items)} item disembunyikan")
             self.search_status.setStyleSheet("""
-                color: #ff6b6b;
+                color: #ff0000;
                 font-size: 12px;
                 font-family: 'Segoe UI', Arial, sans-serif;
                 padding: 4px 8px;
                 font-weight: bold;
+                background-color: rgba(255, 0, 0, 0.1);
+                border: 1px solid rgba(255, 0, 0, 0.3);
+                border-radius: 4px;
             """)
             
             # Red border untuk no results
-            self.update_search_input_style("#ff6b6b")
+            self.update_search_input_style("#ff0000")
         
         # Reset flag setelah selesai programmatic changes
         if self.main_window:
@@ -226,7 +229,7 @@ class SearchUtils:
                     item.setForeground(1, QColor("#4da6ff"))  # Light blue untuk angka
             except ValueError:
                 # It's a string
-                item.setForeground(1, QColor("#51cf66"))  # Light green untuk string
+                item.setForeground(1, QColor("#ffd43b"))  # Yellow untuk string
         else:
             item.setForeground(1, QColor("#e1e1e1"))  # Default light gray for compounds
         

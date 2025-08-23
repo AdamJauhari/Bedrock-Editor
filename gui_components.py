@@ -268,16 +268,37 @@ class GUIComponents:
         return """
             QMessageBox {
                 background-color: #23272e;
-                color: #e1e1e1;
+                color: #ffffff;
+                font-size: 16px;
+                font-family: 'Segoe UI', Arial, sans-serif;
+                font-weight: bold;
+            }
+            QMessageBox QLabel {
+                color: #ffffff;
+                font-size: 16px;
+                font-family: 'Segoe UI', Arial, sans-serif;
+                font-weight: bold;
+                background-color: transparent;
             }
             QMessageBox QPushButton {
                 background-color: #00d084;
-                color: white;
+                color: #ffffff;
                 border: none;
-                padding: 8px 16px;
-                border-radius: 4px;
+                padding: 10px 20px;
+                border-radius: 8px;
                 font-weight: bold;
                 font-size: 14px;
+                font-family: 'Segoe UI', Arial, sans-serif;
+                min-width: 100px;
+                margin: 5px;
+            }
+            QMessageBox QPushButton:hover {
+                background-color: #00b36b;
+                transform: scale(1.05);
+            }
+            QMessageBox QPushButton:pressed {
+                background-color: #009658;
+                transform: scale(0.95);
             }
         """
     
@@ -287,16 +308,37 @@ class GUIComponents:
         return """
             QMessageBox {
                 background-color: #23272e;
-                color: #e1e1e1;
+                color: #ffffff;
+                font-size: 16px;
+                font-family: 'Segoe UI', Arial, sans-serif;
+                font-weight: bold;
+            }
+            QMessageBox QLabel {
+                color: #ffffff;
+                font-size: 16px;
+                font-family: 'Segoe UI', Arial, sans-serif;
+                font-weight: bold;
+                background-color: transparent;
             }
             QMessageBox QPushButton {
-                background-color: #ff4444;
-                color: white;
+                background-color: #ff0000;
+                color: #ffffff;
                 border: none;
-                padding: 8px 16px;
-                border-radius: 4px;
+                padding: 10px 20px;
+                border-radius: 8px;
                 font-weight: bold;
                 font-size: 14px;
+                font-family: 'Segoe UI', Arial, sans-serif;
+                min-width: 100px;
+                margin: 5px;
+            }
+            QMessageBox QPushButton:hover {
+                background-color: #cc0000;
+                transform: scale(1.05);
+            }
+            QMessageBox QPushButton:pressed {
+                background-color: #990000;
+                transform: scale(0.95);
             }
         """
     
@@ -306,16 +348,37 @@ class GUIComponents:
         return """
             QMessageBox {
                 background-color: #23272e;
-                color: #e1e1e1;
+                color: #ffffff;
+                font-size: 16px;
+                font-family: 'Segoe UI', Arial, sans-serif;
+                font-weight: bold;
+            }
+            QMessageBox QLabel {
+                color: #ffffff;
+                font-size: 16px;
+                font-family: 'Segoe UI', Arial, sans-serif;
+                font-weight: bold;
+                background-color: transparent;
             }
             QMessageBox QPushButton {
                 background-color: #ff9500;
-                color: white;
+                color: #ffffff;
                 border: none;
-                padding: 8px 16px;
-                border-radius: 4px;
+                padding: 10px 20px;
+                border-radius: 8px;
                 font-weight: bold;
                 font-size: 14px;
+                font-family: 'Segoe UI', Arial, sans-serif;
+                min-width: 100px;
+                margin: 5px;
+            }
+            QMessageBox QPushButton:hover {
+                background-color: #e6850e;
+                transform: scale(1.05);
+            }
+            QMessageBox QPushButton:pressed {
+                background-color: #cc7700;
+                transform: scale(0.95);
             }
         """
     
@@ -325,17 +388,36 @@ class GUIComponents:
         return """
             QMessageBox {
                 background-color: #23272e;
-                color: #e1e1e1;
+                color: #ffffff;
+                font-size: 16px;
+                font-family: 'Segoe UI', Arial, sans-serif;
+                font-weight: bold;
+            }
+            QMessageBox QLabel {
+                color: #ffffff;
+                font-size: 16px;
+                font-family: 'Segoe UI', Arial, sans-serif;
+                font-weight: bold;
+                background-color: transparent;
             }
             QMessageBox QPushButton {
                 background-color: #00bfff;
-                color: #23272e;
+                color: #ffffff;
                 border: none;
-                padding: 6px 12px;
-                border-radius: 4px;
+                padding: 10px 20px;
+                border-radius: 8px;
                 font-weight: bold;
+                font-size: 14px;
+                font-family: 'Segoe UI', Arial, sans-serif;
+                min-width: 100px;
+                margin: 5px;
             }
             QMessageBox QPushButton:hover {
                 background-color: #0099cc;
+                transform: scale(1.05);
+            }
+            QMessageBox QPushButton:pressed {
+                background-color: #0077aa;
+                transform: scale(0.95);
             }
         """
