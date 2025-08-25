@@ -93,20 +93,7 @@ class BedrockParser:
             except Exception as e:
                 print(f"❌ nbtlib (gzipped=True) failed: {e}")
             
-            # Try amulet-nbt parser if available
-            if hasattr(self, 'amulet_parser') and self.amulet_parser:
-                print("Trying amulet-nbt parser...")
-                try:
-                    result = self.amulet_parser.parse_bedrock_level_dat(file_path)
-                    if result and isinstance(result, dict) and len(result) > 0:
-                        print(f"✅ amulet-nbt successful: {len(result)} keys detected")
-                        # 🔧 Update detected patterns from actual data
-                        self.update_detected_patterns(result)
-                        return result
-                    else:
-                        print("⚠️  amulet-nbt returned empty result")
-                except Exception as e:
-                    print(f"❌ amulet-nbt failed: {e}")
+
             
             # Try manual NBT parser as fallback
             print("Trying manual NBT parser...")
@@ -134,79 +121,7 @@ class BedrockParser:
             traceback.print_exc()
             return {}
     
-    def _convert_amulet_nbt_to_dict(self, nbt_data):
-        """Convert amulet-nbt data to Python dict with proper type handling"""
-        try:
-            if hasattr(nbt_data, 'compound'):
-                return self._convert_amulet_nbt_to_dict(nbt_data.compound)
-            elif hasattr(nbt_data, 'items') and callable(getattr(nbt_data, 'items')):
-                result = {}
-                for k, v in nbt_data.items():
-                    key_str = str(k)
-                    result[key_str] = self._convert_amulet_value(v)
-                return result
-            elif isinstance(nbt_data, dict):
-                result = {}
-                for k, v in nbt_data.items():
-                    result[str(k)] = self._convert_amulet_value(v)
-                return result
-            else:
-                return self._convert_amulet_value(nbt_data)
-        except Exception as e:
-            print(f"Error converting amulet-nbt: {e}")
-            return {}
-    
-    def _convert_amulet_value(self, value):
-        """Convert individual amulet-nbt value with proper type preservation"""
-        try:
-            # Handle NBT tag objects
-            if hasattr(value, 'tag_id'):
-                # Extract actual value from NBT tag
-                if hasattr(value, 'value'):
-                    return self._convert_amulet_value(value.value)
-                elif hasattr(value, 'py_data'):
-                    return value.py_data
-                elif hasattr(value, 'py_int'):
-                    return value.py_int
-                elif hasattr(value, 'py_float'):
-                    return value.py_float
-                elif hasattr(value, 'py_str'):
-                    return value.py_str
-                elif hasattr(value, 'py_bool'):
-                    return value.py_bool
-                else:
-                    # Fallback: try to convert to string and extract value
-                    str_value = str(value)
-                    if '(' in str_value and ')' in str_value:
-                        # Extract value from format like "Byte(1)" or "Int(42)"
-                        try:
-                            actual_value = str_value.split('(')[1].split(')')[0]
-                            # Convert to appropriate type
-                            if '.' in actual_value:
-                                return float(actual_value)
-                            elif actual_value.lower() in ['true', 'false']:
-                                return actual_value.lower() == 'true'
-                            else:
-                                return int(actual_value)
-                        except:
-                            pass
-                    return str_value
-            
-            if hasattr(value, 'value'):
-                return self._convert_amulet_value(value.value)
-            elif hasattr(value, 'py_data'):
-                return value.py_data
-            elif hasattr(value, 'items') and callable(getattr(value, 'items')):
-                result = {}
-                for k, v in value.items():
-                    result[str(k)] = self._convert_amulet_value(v)
-                return result
-            elif isinstance(value, (list, tuple)):
-                return [self._convert_amulet_value(v) for v in value]
-            else:
-                return value
-        except Exception:
-            return str(value)
+
     
     def _convert_nbtlib_data(self, nbt_data):
         """Convert nbtlib data to Python dict with enhanced debugging"""
@@ -916,6 +831,11 @@ class BedrockParser:
     def _get_tag_type_improved(self, key, value):
         """Get NBT tag type with automatic detection based on value and key patterns"""
         
+        # Check for specific key overrides first
+        specific_type = self._get_specific_key_type(key)
+        if specific_type is not None:
+            return specific_type
+        
         # Auto-detect boolean based on value and key patterns
         if self._is_boolean_value(key, value):
             return self.TAG_BYTE
@@ -951,6 +871,19 @@ class BedrockParser:
         if isinstance(value, int) and value in [0, 1]:
             # Check key patterns that suggest boolean
             key_lower = key.lower()
+            
+            # Exclude keys that should NOT be boolean
+            non_boolean_exclusions = [
+                'worldversion', 'editorworldtype', 'eduoffer', 'permissionlevel', 
+                'playerpermissionlevel', 'randomtickspeed', 'lastplayed', 'currenttick',
+                'lanbroadcastintent', 'randomseed', 'time'
+            ]
+            
+            # Check exclusions first
+            for exclusion in non_boolean_exclusions:
+                if exclusion in key_lower:
+                    return False
+            
             boolean_patterns = [
                 'enabled', 'disabled', 'on', 'off', 'true', 'false',
                 'allow', 'deny', 'show', 'hide', 'enable', 'disable',
@@ -1076,6 +1009,11 @@ class BedrockParser:
     
     def _get_tag_type_conservative(self, key, value):
         """Conservative type detection that preserves existing types when possible"""
+        # Check for specific key overrides first
+        specific_type = self._get_specific_key_type(key)
+        if specific_type is not None:
+            return specific_type
+        
         # If value is already a specific type, preserve it
         if isinstance(value, bool):
             return self.TAG_BYTE
@@ -1097,6 +1035,49 @@ class BedrockParser:
             return self.TAG_COMPOUND
         else:
             return self.TAG_STRING  # Default to string
+    
+    def _get_specific_key_type(self, key):
+        """Get specific tag type for known keys that have fixed types"""
+        key_lower = key.lower()
+        
+        # Boolean keys (TAG_BYTE)
+        boolean_keys = {
+            'forcegametype', 'playerhasdied', 'locatorbar'
+        }
+        
+        # Integer keys (TAG_INT)
+        integer_keys = {
+            'worldversion', 'editorworldtype', 'eduoffer', 'permissionlevel', 
+            'playerpermissionlevel', 'randomtickspeed', 'lanbroadcastintent'
+        }
+        
+        # Long keys (TAG_LONG)
+        long_keys = {
+            'lastplayed', 'currenttick', 'randomseed', 'time'
+        }
+        
+        # Check for exact matches
+        if key_lower in boolean_keys:
+            return self.TAG_BYTE
+        elif key_lower in integer_keys:
+            return self.TAG_INT
+        elif key_lower in long_keys:
+            return self.TAG_LONG
+        
+        # Check for partial matches (case-insensitive)
+        for boolean_key in boolean_keys:
+            if boolean_key in key_lower or key_lower in boolean_key:
+                return self.TAG_BYTE
+        
+        for integer_key in integer_keys:
+            if integer_key in key_lower or key_lower in integer_key:
+                return self.TAG_INT
+        
+        for long_key in long_keys:
+            if long_key in key_lower or key_lower in long_key:
+                return self.TAG_LONG
+        
+        return None
     
     def _detect_boolean_patterns_from_data(self, data):
         """Automatically detect boolean patterns from actual NBT data structure"""
@@ -1286,7 +1267,8 @@ class BedrockParser:
             'serverchunktickrange', 'spawnradius', 'worldstartcount', 'functioncommandlimit',
             'editorworldtype', 'eduoffer', 'limitedworldoriginx', 'limitedworldoriginy',
             'limitedworldoriginz', 'spawnx', 'spawny', 'spawnz', 'platformbroadcastintent',
-            'xblbroadcastintent', 'daylightcycle'
+            'xblbroadcastintent', 'daylightcycle', 'permissionlevel', 'playerpermissionlevel',
+            'lanbroadcastintent'
         ]
         
         # Check exclusions first

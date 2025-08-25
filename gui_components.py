@@ -382,42 +382,4 @@ class GUIComponents:
             }
         """
     
-    @staticmethod
-    def get_confirmation_dialog_style():
-        """Get confirmation dialog styling"""
-        return """
-            QMessageBox {
-                background-color: #23272e;
-                color: #ffffff;
-                font-size: 16px;
-                font-family: 'Segoe UI', Arial, sans-serif;
-                font-weight: bold;
-            }
-            QMessageBox QLabel {
-                color: #ffffff;
-                font-size: 16px;
-                font-family: 'Segoe UI', Arial, sans-serif;
-                font-weight: bold;
-                background-color: transparent;
-            }
-            QMessageBox QPushButton {
-                background-color: #00bfff;
-                color: #ffffff;
-                border: none;
-                padding: 10px 20px;
-                border-radius: 8px;
-                font-weight: bold;
-                font-size: 14px;
-                font-family: 'Segoe UI', Arial, sans-serif;
-                min-width: 100px;
-                margin: 5px;
-            }
-            QMessageBox QPushButton:hover {
-                background-color: #0099cc;
-                transform: scale(1.05);
-            }
-            QMessageBox QPushButton:pressed {
-                background-color: #0077aa;
-                transform: scale(0.95);
-            }
-        """
+

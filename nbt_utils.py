@@ -188,6 +188,25 @@ def _is_boolean_key(key_name):
     
     key_lower = key_name.lower()
     
+    # 🔧 Exclude keys that should NOT be boolean
+    non_boolean_exclusions = [
+        'worldversion', 'editorworldtype', 'eduoffer', 'permissionlevel', 
+        'playerpermissionlevel', 'randomtickspeed', 'lastplayed', 'currenttick',
+        'gametype', 'generator', 'randomseed', 'lightninglevel', 'rainlevel',
+        'difficulty', 'storageversion', 'networkversion', 'platform', 'netherscale', 
+        'time', 'lightningtime', 'raintime', 'limitedworlddepth', 'limitedworldwidth', 
+        'maxcommandchainlength', 'permissionslevel', 'playerpermissionslevel', 
+        'playerssleepingpercentage', 'serverchunktickrange', 'spawnradius', 
+        'worldstartcount', 'functioncommandlimit', 'limitedworldoriginx', 
+        'limitedworldoriginy', 'limitedworldoriginz', 'spawnx', 'spawny', 'spawnz', 
+        'platformbroadcastintent', 'xblbroadcastintent', 'daylightcycle', 'lanbroadcastintent'
+    ]
+    
+    # Check exclusions first
+    for exclusion in non_boolean_exclusions:
+        if exclusion in key_lower:
+            return False
+    
     # 🔧 Use auto-detected patterns if available (this will be set by the parser)
     # For now, use basic detection patterns
     basic_boolean_patterns = [
@@ -229,3 +248,4 @@ def _is_boolean_key(key_name):
             return True
     
     return False
+
