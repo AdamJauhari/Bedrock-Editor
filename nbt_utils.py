@@ -107,7 +107,7 @@ def get_nbt_value_display(value):
 
 
 
-def get_value_type_icon(value):
+def get_value_type_icon(value, key_name=None):
     """Get icon type for value display"""
     if isinstance(value, dict):
         return "folder"  # Compound tag
@@ -116,7 +116,10 @@ def get_value_type_icon(value):
     elif isinstance(value, bool):
         return "B"       # Byte/Boolean
     elif isinstance(value, int):
-        if abs(value) > 2147483647:
+        # Check if this should be a boolean based on value and key patterns
+        if value in [0, 1] and key_name and _is_boolean_key(key_name):
+            return "B"   # Byte/Boolean
+        elif abs(value) > 2147483647:
             return "L"   # Long
         else:
             return "I"   # Integer
@@ -135,8 +138,18 @@ def convert_to_json_format(data, parent_key=None):
             result[key] = convert_to_json_format(value, key)
         return result
     elif isinstance(data, list):
-        # Special handling for version arrays - they should be all integers
+        # 🔧 Auto-detect version arrays based on content and context
+        is_version_array = False
+        
+        # Check if parent key suggests version
         if parent_key and 'version' in parent_key.lower():
+            is_version_array = True
+        
+        # Check if all elements are integers (common for version arrays)
+        if len(data) > 0 and all(isinstance(item, int) for item in data):
+            is_version_array = True
+        
+        if is_version_array:
             return [format_value_for_json(item, None) for item in data]  # Don't treat as boolean
         else:
             return [convert_to_json_format(item, parent_key) for item in data]
@@ -169,31 +182,49 @@ def format_value_for_json(value, key_name=None):
         return str(value)
 
 def _is_boolean_key(key_name):
-    """Check if a key name suggests the value should be treated as boolean"""
+    """Check if a key name suggests the value should be treated as boolean using auto-detection"""
     if not key_name:
         return False
     
     key_lower = key_name.lower()
     
-    # Common boolean patterns - no hardcoded specific keys
-    boolean_patterns = [
-        'enabled', 'disabled', 'attack', 'build', 'flying', 'invulnerable',
-        'lightning', 'mayfly', 'mine', 'op', 'teleport', 'instabuild',
-        'hardcore', 'broadcast', 'intent', 'multiplayer', 'cheats',
-        'commands', 'daylight', 'entity', 'fire', 'immediate',
-        'insomnia', 'limited', 'mob', 'tile', 'weather', 'drowning',
-        'fall', 'freeze', 'immutable', 'locked', 'random', 'single',
-        'template', 'keep', 'natural', 'projectile', 'pvp', 'recipe',
-        'require', 'respawn', 'send', 'show', 'spawn', 'start',
-        'texture', 'tnt', 'use', 'world', 'output', 'blocks',
-        'damage', 'griefing', 'regeneration', 'sleeping', 'drops',
-        'spawning', 'explode', 'feedback', 'border', 'coordinates',
-        'days', 'death', 'recipe', 'tags', 'mobs', 'radius',
-        'map', 'packs', 'explosion', 'decay', 'gamertags'
+    # 🔧 Use auto-detected patterns if available (this will be set by the parser)
+    # For now, use basic detection patterns
+    basic_boolean_patterns = [
+        'enabled', 'disabled', 'true', 'false', 'on', 'off'
     ]
     
-    # Check if any pattern matches
-    for pattern in boolean_patterns:
+    # Check if key contains basic boolean patterns
+    for pattern in basic_boolean_patterns:
+        if pattern in key_lower:
+            return True
+    
+    # Check if key starts with common boolean prefixes
+    boolean_prefixes = ['is', 'has', 'can', 'do', 'show', 'allow']
+    for prefix in boolean_prefixes:
+        if key_lower.startswith(prefix):
+            return True
+    
+    # Check if key ends with common boolean suffixes
+    boolean_suffixes = ['enabled', 'disabled', 'allowed', 'active']
+    for suffix in boolean_suffixes:
+        if key_lower.endswith(suffix):
+            return True
+    
+    # Check for specific boolean patterns that are very reliable
+    specific_boolean_patterns = [
+        'attack', 'build', 'flying', 'invulnerable', 'lightning', 'mayfly', 'mine', 'op', 'teleport',
+        'instabuild', 'hardcore', 'broadcast', 'intent', 'multiplayer', 'cheats', 'commands',
+        'entity', 'fire', 'immediate', 'insomnia', 'limited', 'mob', 'tile', 'weather', 'drowning',
+        'fall', 'freeze', 'immutable', 'locked', 'random', 'single', 'template', 'keep', 'natural',
+        'projectile', 'pvp', 'recipe', 'require', 'respawn', 'send', 'spawn', 'start', 'texture',
+        'tnt', 'use', 'world', 'output', 'blocks', 'damage', 'griefing', 'regeneration', 'sleeping',
+        'drops', 'spawning', 'explode', 'feedback', 'border', 'coordinates', 'days', 'death', 'tags',
+        'mobs', 'radius', 'map', 'packs', 'explosion', 'decay', 'gamertags', 'doorsandswitches',
+        'opencontainers', 'bonuschest', 'commandblock', 'education'
+    ]
+    
+    for pattern in specific_boolean_patterns:
         if pattern in key_lower:
             return True
     

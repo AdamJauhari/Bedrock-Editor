@@ -359,6 +359,18 @@ class NBTEditor(QMainWindow):
                     self._type_info = {}
                     print("🔧 Initialized type info dictionary")
                 
+                # Store type info for all keys during initial loading
+                print("🔧 Storing type info for all keys...")
+                for key, value in nbt_data.items():
+                    self._store_initial_type_info(key, value)
+                print(f"🔧 Stored type info for {len(self._type_info)} keys")
+                
+                # Debug: Show boolean keys
+                boolean_keys = [k for k, v in self._type_info.items() if v.get('original_type') == bool]
+                print(f"🔧 Boolean keys detected: {len(boolean_keys)}")
+                if boolean_keys:
+                    print(f"🔧 Sample boolean keys: {boolean_keys[:5]}")
+                
                 self.tree.clear()
                 self.populate_tree(self.nbt_data, self.tree.invisibleRootItem())
                 
@@ -513,16 +525,25 @@ class NBTEditor(QMainWindow):
                     print("🔄 Using manual NBT writer with type preservation...")
                     
                     try:
-                        # Use the manual NBT writer from bedrock_parser with type preservation
-                        type_info = getattr(self, '_type_info', {})
+                        # Ensure type info exists and is properly populated
+                        if not hasattr(self, '_type_info') or not self._type_info:
+                            print("⚠️ No type info found, creating from current data...")
+                            self._type_info = {}
+                            for key, value in self.nbt_data.items():
+                                self._store_initial_type_info(key, value)
+                        
+                        type_info = self._type_info
                         print(f"🔧 Saving with type preservation: {len(type_info)} keys")
                         
-                        if type_info:
-                            print(f"🔧 Type info keys: {list(type_info.keys())}")
+                        # Debug: Show some type info
+                        boolean_keys = [k for k, v in type_info.items() if v.get('original_type') == bool]
+                        print(f"🔧 Boolean keys in type info: {len(boolean_keys)}")
+                        if boolean_keys:
+                            print(f"🔧 Sample boolean keys: {boolean_keys[:5]}")
                         
                         # Verify data structure before saving
                         print(f"🔍 Verifying data structure before save...")
-                        for key, value in self.nbt_data.items():
+                        for key, value in list(self.nbt_data.items())[:5]:  # Show first 5 keys
                             print(f"   {key}: {value} (type: {type(value)})")
                         
                         success = self.bedrock_parser.save_nbt_data_manual_with_type_info(
@@ -538,10 +559,9 @@ class NBTEditor(QMainWindow):
                             # Reset window title setelah save berhasil
                             self.setWindowTitle("Bedrock NBT/DAT Editor")
                             
-                            # Clear type info after successful save to prevent stale data
-                            if hasattr(self, '_type_info'):
-                                self._type_info.clear()
-                                print("🧹 Cleared type info after successful save")
+                            # Don't clear type info after successful save to maintain type preservation
+                            # The type info is needed for future saves and to prevent type changes
+                            print("🔧 Keeping type info for future saves and type preservation")
                             
                             # Success message dengan styling yang match
                             msg = QMessageBox()
@@ -555,6 +575,8 @@ class NBTEditor(QMainWindow):
                             
                     except Exception as manual_error:
                         print(f"❌ Manual save failed: {manual_error}")
+                        import traceback
+                        traceback.print_exc()
                         
                         # Fallback: save as JSON
                         json_file = self.nbt_file.replace('.dat', '.json')
@@ -614,6 +636,35 @@ class NBTEditor(QMainWindow):
             return value.value
         return value
     
+    def create_type_icon(self, type_label, color="#4da6ff"):
+        """Create a custom icon with type label"""
+        from PyQt5.QtGui import QPixmap, QPainter, QFont, QColor, QIcon
+        from PyQt5.QtCore import Qt
+        
+        # Create a small pixmap for the icon
+        pixmap = QPixmap(16, 16)
+        pixmap.fill(Qt.transparent)
+        
+        # Create painter
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.Antialiasing)
+        
+        # Set font
+        font = QFont()
+        font.setPointSize(8)
+        font.setBold(True)
+        painter.setFont(font)
+        
+        # Set color
+        painter.setPen(QColor(color))
+        
+        # Draw text centered
+        painter.drawText(pixmap.rect(), Qt.AlignCenter, type_label)
+        painter.end()
+        
+        # Convert QPixmap to QIcon
+        return QIcon(pixmap)
+    
     def populate_tree(self, nbt_node, parent_item):
         """Populate tree widget with NBT data with enhanced validation"""
         try:
@@ -621,6 +672,10 @@ class NBTEditor(QMainWindow):
             if nbt_node is None:
                 print("⚠️ Warning: nbt_node is None")
                 return
+            
+            # Initialize type info dictionary if not exists
+            if not hasattr(self, '_type_info'):
+                self._type_info = {}
             
             # Tampilkan semua entri NBT sebagai tree dengan Key dan Value terpisah
             if isinstance(nbt_node, dict) or hasattr(nbt_node, 'items'):
@@ -632,7 +687,9 @@ class NBTEditor(QMainWindow):
                 
                 for key, value in sorted_items:
                     value_display = get_nbt_value_display(value)
-                    type_icon = get_value_type_icon(value)
+                    # Extract actual value for type detection
+                    actual_value = self.extract_nbt_value(value)
+                    type_icon = get_value_type_icon(actual_value, key)
                     
                     if isinstance(value, (dict, list)) or hasattr(value, 'items'):
                         # Untuk compound/list, tampilkan key dan jumlah entries
@@ -655,26 +712,30 @@ class NBTEditor(QMainWindow):
                         actual_value = self.extract_nbt_value(value)
                         item.setData(1, Qt.UserRole, actual_value)
                         
-                        # Set icon berdasarkan tipe data
+                        # 🔧 STORE TYPE INFO FOR ALL KEYS DURING LOADING
+                        # This ensures type preservation for keys that aren't edited
+                        self._store_initial_type_info(key, actual_value)
+                        
+                        # Set icon berdasarkan tipe data dengan label custom
                         if type_icon == "B":
-                            # Byte/Boolean - blue B icon
-                            item.setIcon(0, self.style().standardIcon(self.style().SP_MessageBoxInformation))
+                            # Byte/Boolean - purple B icon
+                            item.setIcon(0, self.create_type_icon("B", "#a855f7"))
                         elif type_icon == "I":
                             # Integer - blue I icon
-                            item.setIcon(0, self.style().standardIcon(self.style().SP_MessageBoxInformation))
+                            item.setIcon(0, self.create_type_icon("I", "#4da6ff"))
                         elif type_icon == "L":
                             # Long - green L icon
-                            item.setIcon(0, self.style().standardIcon(self.style().SP_MessageBoxInformation))
+                            item.setIcon(0, self.create_type_icon("L", "#51cf66"))
                         elif type_icon == "F":
                             # Float - orange F icon
-                            item.setIcon(0, self.style().standardIcon(self.style().SP_MessageBoxInformation))
+                            item.setIcon(0, self.create_type_icon("F", "#ff6b6b"))
                         elif type_icon == "S":
-                            # String - yellow quotes icon
-                            item.setIcon(0, self.style().standardIcon(self.style().SP_MessageBoxInformation))
+                            # String - yellow S icon
+                            item.setIcon(0, self.create_type_icon("S", "#ffd43b"))
                         
                         # Set warna yang kontras untuk semua tipe data
                         if isinstance(value, bool):
-                            item.setForeground(1, QColor("#4da6ff"))  # Light blue untuk boolean
+                            item.setForeground(1, QColor("#a855f7"))  # Purple untuk boolean
                         elif isinstance(value, int):
                             if abs(value) > 2147483647:
                                 item.setForeground(1, QColor("#51cf66"))  # Light green untuk long
@@ -693,7 +754,9 @@ class NBTEditor(QMainWindow):
                 # List NBT - tampilkan index sebagai key
                 for idx, value in enumerate(nbt_node):
                     value_display = get_nbt_value_display(value)
-                    type_icon = get_value_type_icon(value)
+                    # Extract actual value for type detection
+                    actual_value = self.extract_nbt_value(value)
+                    type_icon = get_value_type_icon(actual_value, f"[{idx}]")
                     
                     if isinstance(value, (dict, list)) or hasattr(value, 'items'):
                         item = QTreeWidgetItem([f"[{idx}]", value_display])
@@ -706,22 +769,26 @@ class NBTEditor(QMainWindow):
                         # Store original value untuk tracking changes (extract value from NBT tags)
                         actual_value = self.extract_nbt_value(value)
                         item.setData(1, Qt.UserRole, actual_value)
+                        
+                        # 🔧 STORE TYPE INFO FOR LIST ITEMS TOO
+                        list_key = f"[{idx}]"
+                        self._store_initial_type_info(list_key, actual_value)
                     
-                    # Set icon dan warna berdasarkan tipe data
+                    # Set icon dan warna berdasarkan tipe data dengan label custom
                     if type_icon == "B":
-                        item.setIcon(0, self.style().standardIcon(self.style().SP_MessageBoxInformation))
-                        item.setForeground(1, QColor("#4da6ff"))
+                        item.setIcon(0, self.create_type_icon("B", "#a855f7"))
+                        item.setForeground(1, QColor("#a855f7"))
                     elif type_icon == "I":
-                        item.setIcon(0, self.style().standardIcon(self.style().SP_MessageBoxInformation))
+                        item.setIcon(0, self.create_type_icon("I", "#4da6ff"))
                         item.setForeground(1, QColor("#4da6ff"))
                     elif type_icon == "L":
-                        item.setIcon(0, self.style().standardIcon(self.style().SP_MessageBoxInformation))
+                        item.setIcon(0, self.create_type_icon("L", "#51cf66"))
                         item.setForeground(1, QColor("#51cf66"))
                     elif type_icon == "F":
-                        item.setIcon(0, self.style().standardIcon(self.style().SP_MessageBoxInformation))
+                        item.setIcon(0, self.create_type_icon("F", "#ff6b6b"))
                         item.setForeground(1, QColor("#ff6b6b"))
                     elif type_icon == "S":
-                        item.setIcon(0, self.style().standardIcon(self.style().SP_MessageBoxInformation))
+                        item.setIcon(0, self.create_type_icon("S", "#ffd43b"))
                         item.setForeground(1, QColor("#ffd43b"))
                     
                     parent_item.addChild(item)
@@ -735,6 +802,154 @@ class NBTEditor(QMainWindow):
             print(f"❌ Error in populate_tree: {e}")
             import traceback
             traceback.print_exc()
+    
+    def _store_initial_type_info(self, key, value):
+        """Store initial type info for all keys during loading"""
+        if not hasattr(self, '_type_info'):
+            self._type_info = {}
+        
+        # 🔧 Auto-detect experiment keys from parser
+        is_experiment_key = False
+        if hasattr(self, 'bedrock_parser') and hasattr(self.bedrock_parser, '_detected_experiment_keys'):
+            is_experiment_key = key in self.bedrock_parser._detected_experiment_keys
+        
+        # Determine the actual type of the value
+        actual_type = type(value)
+        
+        # 🔧 FIXED: Enhanced boolean detection for both NBT tags and native Python types
+        if hasattr(value, 'tag_id') and hasattr(value, 'value'):
+            # NBT tag object - check if it's a byte tag (boolean in NBT)
+            actual_value = value.value
+            if actual_value in [0, 1] and self._is_boolean_key_pattern(key):
+                actual_type = bool
+                value = bool(actual_value)
+                print(f"🔧 Detected boolean NBT tag for '{key}': {value}")
+        elif isinstance(value, int) and value in [0, 1]:
+            # Native Python int that might be a boolean
+            if self._is_boolean_key_pattern(key):
+                actual_type = bool
+                value = bool(value)
+                print(f"🔧 Detected boolean native int for '{key}': {value}")
+        
+        # Store type info for all keys during initial loading
+        if '.' in key or is_experiment_key:
+            # This is a nested key or experiment key
+            self._type_info[key] = {
+                'original_type': actual_type,
+                'new_value': value,  # Same as original during loading
+                'is_nested': True,
+                'is_experiment': is_experiment_key,
+                'is_initial_load': True,  # Mark as initial load
+                'was_edited': False
+            }
+        else:
+            self._type_info[key] = {
+                'original_type': actual_type,
+                'new_value': value,  # Same as original during loading
+                'is_nested': False,
+                'is_experiment': False,
+                'is_initial_load': True,  # Mark as initial load
+                'was_edited': False
+            }
+        
+        # Also store type info for nested structures (lists and dicts)
+        if isinstance(value, list):
+            for i, item in enumerate(value):
+                list_key = f"[{i}]"
+                self._type_info[list_key] = {
+                    'original_type': type(item),
+                    'new_value': item,
+                    'is_nested': True,
+                    'is_experiment': False,
+                    'is_initial_load': True,
+                    'was_edited': False
+                }
+        elif isinstance(value, dict):
+            for nested_key, nested_value in value.items():
+                nested_full_key = f"{key}.{nested_key}"
+                # Check if nested value is boolean
+                nested_actual_type = type(nested_value)
+                
+                # 🔧 FIXED: Enhanced boolean detection for nested values
+                if hasattr(nested_value, 'tag_id') and hasattr(nested_value, 'value'):
+                    nested_actual_value = nested_value.value
+                    if nested_actual_value in [0, 1] and self._is_boolean_key_pattern(nested_key):
+                        nested_actual_type = bool
+                        nested_value = bool(nested_actual_value)
+                        print(f"🔧 Detected nested boolean NBT tag for '{nested_full_key}': {nested_value}")
+                elif isinstance(nested_value, int) and nested_value in [0, 1]:
+                    if self._is_boolean_key_pattern(nested_key):
+                        nested_actual_type = bool
+                        nested_value = bool(nested_value)
+                        print(f"🔧 Detected nested boolean native int for '{nested_full_key}': {nested_value}")
+                
+                self._type_info[nested_full_key] = {
+                    'original_type': nested_actual_type,
+                    'new_value': nested_value,
+                    'is_nested': True,
+                    'is_experiment': is_experiment_key,
+                    'is_initial_load': True,
+                    'was_edited': False
+                }
+        
+        print(f"🔧 Stored initial type info for '{key}': {actual_type} (value: {value}) [experiment: {is_experiment_key}]")
+    
+    def _is_boolean_key_pattern(self, key):
+        """Check if a key suggests a boolean value using auto-detected patterns"""
+        # 🔧 Use auto-detected patterns from parser if available
+        if hasattr(self, 'bedrock_parser') and hasattr(self.bedrock_parser, '_detected_boolean_patterns'):
+            key_lower = key.lower()
+            
+            # Check if key contains detected boolean patterns
+            for pattern in self.bedrock_parser._detected_boolean_patterns:
+                if pattern in key_lower:
+                    return True
+            
+            # Check if key starts with common boolean prefixes
+            boolean_prefixes = ['is', 'has', 'can', 'do', 'show', 'allow']
+            for prefix in boolean_prefixes:
+                if key_lower.startswith(prefix):
+                    return True
+            
+            # Check if key ends with common boolean suffixes
+            boolean_suffixes = ['enabled', 'disabled', 'allowed', 'active']
+            for suffix in boolean_suffixes:
+                if key_lower.endswith(suffix):
+                    return True
+        
+        # Fallback to basic detection if no patterns detected yet
+        key_lower = key.lower()
+        
+        # Check if key starts with common boolean prefixes
+        boolean_prefixes = ['is', 'has', 'can', 'do', 'show', 'allow']
+        for prefix in boolean_prefixes:
+            if key_lower.startswith(prefix):
+                return True
+        
+        # Check if key ends with common boolean suffixes
+        boolean_suffixes = ['enabled', 'disabled', 'allowed', 'active']
+        for suffix in boolean_suffixes:
+            if key_lower.endswith(suffix):
+                return True
+        
+        # Check for specific boolean patterns that are very reliable
+        specific_boolean_patterns = [
+            'attack', 'build', 'flying', 'invulnerable', 'lightning', 'mayfly', 'mine', 'op', 'teleport',
+            'instabuild', 'hardcore', 'broadcast', 'intent', 'multiplayer', 'cheats', 'commands',
+            'entity', 'fire', 'immediate', 'insomnia', 'limited', 'mob', 'tile', 'weather', 'drowning',
+            'fall', 'freeze', 'immutable', 'locked', 'random', 'single', 'template', 'keep', 'natural',
+            'projectile', 'pvp', 'recipe', 'require', 'respawn', 'send', 'spawn', 'start', 'texture',
+            'tnt', 'use', 'world', 'output', 'blocks', 'damage', 'griefing', 'regeneration', 'sleeping',
+            'drops', 'spawning', 'explode', 'feedback', 'border', 'coordinates', 'days', 'death', 'tags',
+            'mobs', 'radius', 'map', 'packs', 'explosion', 'decay', 'gamertags', 'doorsandswitches',
+            'opencontainers', 'bonuschest', 'commandblock', 'education'
+        ]
+        
+        for pattern in specific_boolean_patterns:
+            if pattern in key_lower:
+                return True
+        
+        return False
 
     def on_tree_item_double_clicked(self, item, column):
         """Handle double-click untuk inline editing"""
@@ -883,12 +1098,26 @@ class NBTEditor(QMainWindow):
         if not hasattr(self, '_type_info'):
             self._type_info = {}
         
-        # Check if this is an experiment key
-        is_experiment_key = key in [
-            'data_driven_biomes', 'experimental_creator_cameras', 'experiments_ever_used',
-            'gametest', 'jigsaw_structures', 'saved_with_toggled_experiments',
-            'upcoming_creator_features', 'villager_trades_rebalance', 'y_2025_drop_3'
-        ]
+        # 🔧 Auto-detect experiment keys from parser
+        is_experiment_key = False
+        if hasattr(self, 'bedrock_parser') and hasattr(self.bedrock_parser, '_detected_experiment_keys'):
+            is_experiment_key = key in self.bedrock_parser._detected_experiment_keys
+        
+        # Check if this key already exists from initial load
+        existing_info = self._type_info.get(key, {})
+        original_value = existing_info.get('new_value', None)
+        
+        # Determine if this key was actually edited
+        is_edited = False
+        if original_value is not None:
+            # Compare values to see if they're different
+            try:
+                if isinstance(original_value, (int, float)) and isinstance(new_value, (int, float)):
+                    is_edited = abs(original_value - new_value) > 0.0001  # Handle floating point precision
+                else:
+                    is_edited = original_value != new_value
+            except:
+                is_edited = str(original_value) != str(new_value)
         
         # Handle nested keys (for experiments dictionary)
         if '.' in key or is_experiment_key:
@@ -897,17 +1126,24 @@ class NBTEditor(QMainWindow):
                 'original_type': original_type,
                 'new_value': new_value,
                 'is_nested': True,
-                'is_experiment': is_experiment_key
+                'is_experiment': is_experiment_key,
+                'is_initial_load': False,  # Mark as edited
+                'was_edited': is_edited
             }
         else:
             self._type_info[key] = {
                 'original_type': original_type,
                 'new_value': new_value,
                 'is_nested': False,
-                'is_experiment': False
+                'is_experiment': False,
+                'is_initial_load': False,  # Mark as edited
+                'was_edited': is_edited
             }
         
-        print(f"🔧 Stored type info for '{key}': {original_type} -> {type(new_value)} (value: {new_value}) [experiment: {is_experiment_key}]")
+        if is_edited:
+            print(f"🔧 Updated type info for edited key '{key}': {original_type} -> {type(new_value)} (value: {new_value}) [experiment: {is_experiment_key}]")
+        else:
+            print(f"🔧 Stored type info for '{key}': {original_type} -> {type(new_value)} (value: {new_value}) [experiment: {is_experiment_key}]")
         
         # Debug: show current type info count
         print(f"📊 Total type info entries: {len(self._type_info)}")
