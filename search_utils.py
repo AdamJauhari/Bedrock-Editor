@@ -72,44 +72,40 @@ class SearchUtils:
         found_items = []
         all_items = []
         
-        def collect_and_filter_items(parent_item):
-            """Recursively collect dan filter tree items"""
+        # Search through all tree items recursively
+        def search_tree_items(parent_item):
             for i in range(parent_item.childCount()):
-                child = parent_item.child(i)
-                all_items.append(child)
-                key_text = child.text(0).lower()
+                item = parent_item.child(i)
+                all_items.append(item)
                 
-                # Check if search term matches key name
-                if search_text.lower() in key_text:
-                    found_items.append(child)
-                    # Highlight the found item
-                    child.setBackground(0, QColor("#ff6b35"))  # Orange background for key
-                    child.setBackground(1, QColor("#ff6b35"))  # Orange background for value
-                    child.setForeground(0, QColor("#ffffff"))  # White text for key
-                    child.setForeground(1, QColor("#ffffff"))  # White text for value
+                # Get item text from name column (column 1)
+                name_text = item.text(1).lower()
+                
+                # Check if search term matches field name
+                if search_text.lower() in name_text:
+                    found_items.append(item)
                     
-                    # Show this item dan semua parent-nya
-                    child.setHidden(False)
-                    parent = child.parent()
-                    while parent and parent != self.tree.invisibleRootItem():
-                        parent.setHidden(False)
-                        self.tree.expandItem(parent)
-                        parent = parent.parent()
-                else:
-                    # Hide item yang tidak cocok
-                    child.setHidden(True)
+                    # Highlight the found item
+                    item.setBackground(0, QColor("#ff6b35"))  # Type column
+                    item.setBackground(1, QColor("#ff6b35"))  # Name column
+                    item.setBackground(2, QColor("#ff6b35"))  # Value column
+                    item.setForeground(1, QColor("#ffffff"))  # White text for name
+                    item.setForeground(2, QColor("#ffffff"))  # White text for value
+                    # Keep original type color, don't override
                 
-                # Continue searching in children
-                collect_and_filter_items(child)
+                # Recursively search children
+                if item.childCount() > 0:
+                    search_tree_items(item)
         
         # Start search from root
-        collect_and_filter_items(self.tree.invisibleRootItem())
+        root_item = self.tree.invisibleRootItem()
+        search_tree_items(root_item)
         
         # Store results and update UI
         self.search_results = found_items
         
         if found_items:
-            # Scroll to first result and select it
+            # Select first result and scroll to it
             self.tree.setCurrentItem(found_items[0])
             self.tree.scrollToItem(found_items[0])
             
@@ -130,11 +126,8 @@ class SearchUtils:
             original_title = "Bedrock NBT/DAT Editor"
             self.tree.window().setWindowTitle(f"{original_title} - Filtered: {len(found_items)}/{len(all_items)} items")
         else:
-            # Show no results status - hide semua items
-            for item in all_items:
-                item.setHidden(True)
-            
-            self.search_status.setText(f"✗ Tidak ada hasil untuk '{search_text}' - {len(all_items)} item disembunyikan")
+            # Show no results status
+            self.search_status.setText(f"✗ Tidak ada hasil untuk '{search_text}' - {len(all_items)} item diperiksa")
             self.search_status.setStyleSheet("""
                 color: #ff0000;
                 font-size: 12px;
@@ -154,27 +147,29 @@ class SearchUtils:
             self.main_window.is_programmatic_change = False
     
     def show_all_items(self):
-        """Tampilkan kembali semua items yang disembunyikan dan reset colors"""
+        """Tampilkan kembali semua items dan reset colors"""
         # Set flag untuk mencegah itemChanged signal jika belum di-set
         was_programmatic = self.main_window.is_programmatic_change if self.main_window else False
         if not was_programmatic and self.main_window:
             self.main_window.is_programmatic_change = True
         
-        def show_all_recursive(parent_item):
-            """Recursively show all tree items"""
+        # Reset colors for all tree items recursively
+        def reset_tree_items(parent_item):
             for i in range(parent_item.childCount()):
-                child = parent_item.child(i)
-                # Show the item
-                child.setHidden(False)
+                item = parent_item.child(i)
                 # Reset background dan foreground colors
-                child.setBackground(0, QColor("transparent"))
-                child.setBackground(1, QColor("transparent"))
-                self.restore_item_colors(child)
-                # Continue with children
-                show_all_recursive(child)
+                item.setBackground(0, QColor("transparent"))
+                item.setBackground(1, QColor("transparent"))
+                item.setBackground(2, QColor("transparent"))
+                self.restore_item_colors(item)
+                
+                # Recursively reset children
+                if item.childCount() > 0:
+                    reset_tree_items(item)
         
         # Start from root
-        show_all_recursive(self.tree.invisibleRootItem())
+        root_item = self.tree.invisibleRootItem()
+        reset_tree_items(root_item)
         
         # Reset flag hanya jika kita yang set (tidak override flag yang sudah ada)
         if not was_programmatic and self.main_window:
@@ -204,34 +199,25 @@ class SearchUtils:
         """)
     
     def restore_item_colors(self, item):
-        """Restore original colors untuk item"""
+        """Restore original colors untuk tree item"""
         # Ensure programmatic flag is set untuk color changes
         was_programmatic = self.main_window.is_programmatic_change if self.main_window else False
         if not was_programmatic and self.main_window:
             self.main_window.is_programmatic_change = True
         
-        key_text = item.text(0)
-        value_text = item.text(1)
-        
-        # Set default key color
-        item.setForeground(0, QColor("#e1e1e1"))
-        
-        # Set value color based on data type (same logic as populate_tree)
-        if not value_text.endswith(" entries"):  # Not a compound/list
-            # Try to determine data type from value
-            try:
-                # Check if it's a number
-                if '.' in value_text:
-                    float(value_text)
-                    item.setForeground(1, QColor("#ff6b6b"))  # Light red untuk float
-                else:
-                    int(value_text)
-                    item.setForeground(1, QColor("#4da6ff"))  # Light blue untuk angka
-            except ValueError:
-                # It's a string
-                item.setForeground(1, QColor("#ffd43b"))  # Yellow untuk string
+        # Get the type name from the item (column 0)
+        type_name = item.text(0)
+        if hasattr(self.main_window, 'get_type_color'):
+            # Restore the original type color
+            type_color = self.main_window.get_type_color(type_name)
+            item.setForeground(0, QColor(type_color))
         else:
-            item.setForeground(1, QColor("#e1e1e1"))  # Default light gray for compounds
+            # Fallback to default color if get_type_color not available
+            item.setForeground(0, QColor("#e1e1e1"))
+        
+        # Set default colors for other columns
+        item.setForeground(1, QColor("#e1e1e1"))  # Name column
+        item.setForeground(2, QColor("#e1e1e1"))  # Value column
         
         # Reset flag hanya jika kita yang set
         if not was_programmatic and self.main_window:
@@ -270,12 +256,7 @@ class SearchUtils:
         # Reset window title
         self.tree.window().setWindowTitle("Bedrock NBT/DAT Editor")
         
-        # Collapse all tree items untuk clean view
-        self.tree.collapseAll()
-        
-        # Expand only first level
-        if self.tree.topLevelItemCount() > 0:
-            self.tree.expandToDepth(0)
+        # Tree widget doesn't need row hiding, all items are visible by default
         
         # Reset flag setelah selesai programmatic changes
         if self.main_window:

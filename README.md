@@ -13,6 +13,19 @@ A powerful GUI application for editing Minecraft Bedrock Edition NBT/DAT files w
 - **Manual Parser**: Custom parser for problematic Bedrock level.dat files
 - **Inline Editing**: Double-click to edit values with confirmation dialogs
 
+### 🎯 User Experience
+- **Visual Feedback**: Enhanced status bar with real-time updates
+- **Modern Styling**: Consistent design language throughout the application
+- **Intuitive Interface**: Improved layout and navigation
+- **Professional Look**: Clean, modern appearance suitable for professional use
+
+### 🌳 Enhanced Branch Indicators
+- **Beautiful Arrow Design**: Replaced default branch indicators with custom styled arrows
+- **Clear Visual Hierarchy**: Distinct styling for expanded (▼) and collapsed (▶) states
+- **Consistent Branding**: Branch indicators use the same blue accent color (#00bfff) as other UI elements
+- **Better UX**: More intuitive and visually appealing tree navigation
+- **Modern Typography**: Uses Segoe UI font with bold weight for better readability
+
 ## Project Structure
 
 The application has been modularized for better maintainability:

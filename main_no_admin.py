@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
 """
-Bedrock NBT/DAT Editor with Generic NBT Parser
-Reads and displays NBT files with field names, values, and data types
+Bedrock NBT/DAT Editor - No Admin Version
+Runs without requiring administrator privileges for development and testing
 """
 
 import sys
 import os
 import shutil
-import ctypes
-import subprocess
 import json
 
 # Import our separated modules
@@ -27,54 +25,15 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QIcon, QColor
 
-def is_admin():
-    """Check if the current process has administrator privileges"""
-    try:
-        return ctypes.windll.shell32.IsUserAnAdmin()
-    except:
-        return False
-
-def run_as_admin():
-    """Restart the application with administrator privileges"""
-    try:
-        if not is_admin():
-            # Re-run the program with admin rights
-            ctypes.windll.shell32.ShellExecuteW(
-                None, 
-                "runas", 
-                sys.executable, 
-                " ".join(sys.argv), 
-                None, 
-                1
-            )
-            sys.exit(0)
-    except Exception as e:
-        print(f"Failed to elevate privileges: {e}")
-        return False
-    return True
-
-def check_admin_privileges():
-    """Check and request admin privileges if needed"""
-    if not is_admin():
-        print("⚠️ Program membutuhkan hak akses Administrator untuk mengakses file Minecraft")
-        print("🔄 Memulai ulang program dengan hak akses Administrator...")
-        
-        # Elevate privileges without showing message box first
-        run_as_admin()
-        return False
-    else:
-        print("✅ Program berjalan dengan hak akses Administrator")
-        return True
-
-class NBTEditor(QMainWindow):
+class NBTEditorNoAdmin(QMainWindow):
     def __init__(self):
         super().__init__()
         
-        # Check admin privileges first
-        if not check_admin_privileges():
-            return  # Exit if elevation is needed
+        # Skip admin privileges check
+        print("🔧 Running in No-Admin Mode (Development/Testing)")
+        print("⚠️ Some features may be limited without administrator access")
         
-        self.setWindowTitle("Bedrock NBT/DAT Editor (Generic Parser)")
+        self.setWindowTitle("Bedrock NBT/DAT Editor - No Admin Mode")
         self.setGeometry(100, 100, 1200, 800)
         self.setWindowIcon(QIcon("icon.png"))
         self.nbt_file = None
@@ -98,7 +57,7 @@ class NBTEditor(QMainWindow):
         # Connect search input to search utils
         self.search_input.textChanged.connect(self.search_utils.on_search_text_changed)
         
-        # Load worlds
+        # Load worlds (will show limited access message)
         self.load_worlds()
         
         # Connect world selection
@@ -108,7 +67,7 @@ class NBTEditor(QMainWindow):
         self.tree.itemDoubleClicked.connect(self.on_tree_item_double_clicked)
         self.tree.itemChanged.connect(self.on_item_changed)
         
-        print("✅ NBT Editor initialized successfully")
+        print("✅ NBT Editor (No Admin) initialized successfully")
 
     def init_ui(self):
         """Initialize the user interface"""
@@ -126,6 +85,20 @@ class NBTEditor(QMainWindow):
         world_label = QLabel("Minecraft Worlds:")
         world_label.setStyleSheet("font-weight: bold; font-size: 14px; color: #ffffff; margin-bottom: 10px;")
         left_panel.addWidget(world_label)
+        
+        # Admin mode warning
+        admin_warning = QLabel("⚠️ No Admin Mode - Limited Access")
+        admin_warning.setStyleSheet("""
+            color: #ff9500;
+            font-size: 12px;
+            font-weight: bold;
+            padding: 8px;
+            background-color: rgba(255, 149, 0, 0.1);
+            border: 1px solid rgba(255, 149, 0, 0.3);
+            border-radius: 6px;
+            margin-bottom: 10px;
+        """)
+        left_panel.addWidget(admin_warning)
         
         # World list widget
         self.world_list = QListWidget()
@@ -177,11 +150,6 @@ class NBTEditor(QMainWindow):
         # Set tree properties
         self.tree.setSelectionBehavior(QTreeWidget.SelectRows)
         self.tree.setEditTriggers(QTreeWidget.NoEditTriggers)
-        self.tree.setRootIsDecorated(True)  # Show branch indicators
-        self.tree.setItemsExpandable(True)  # Allow items to be expanded
-        
-        # Setup custom branch text
-        self.setup_custom_branch_text()
         
         center_layout.addWidget(self.tree)
         main_layout.addLayout(center_layout, 4)  # 4 = most space for table
@@ -204,6 +172,31 @@ class NBTEditor(QMainWindow):
         export_button.clicked.connect(self.export_to_json)
         export_button.setStyleSheet(GUIComponents.get_button_style())
         right_panel.addWidget(export_button)
+        
+        # Demo data button for testing
+        demo_button = QPushButton("Load Demo Data")
+        demo_button.clicked.connect(self.load_demo_data)
+        demo_button.setStyleSheet("""
+            QPushButton {
+                background-color: #ff9500;
+                color: white;
+                font-weight: bold;
+                font-size: 14px;
+                font-family: 'Segoe UI', Arial, sans-serif;
+                border: none;
+                border-radius: 6px;
+                padding: 8px 16px;
+                margin: 2px;
+                min-width: 100px;
+            }
+            QPushButton:hover {
+                background-color: #e6850e;
+            }
+            QPushButton:pressed {
+                background-color: #cc7700;
+            }
+        """)
+        right_panel.addWidget(demo_button)
         
         right_panel.addStretch()
         main_layout.addLayout(right_panel, 1)  # 1 = minimum space for buttons
@@ -229,7 +222,7 @@ class NBTEditor(QMainWindow):
             self.nbt_reader = None
             
             # Reset window title
-            self.setWindowTitle("Bedrock NBT/DAT Editor (Generic Parser)")
+            self.setWindowTitle("Bedrock NBT/DAT Editor - No Admin Mode")
             
             # Clear any pending operations
             if hasattr(self, 'search_timer') and self.search_timer.isActive():
@@ -243,51 +236,136 @@ class NBTEditor(QMainWindow):
     def load_worlds(self):
         """Load Minecraft worlds from the worlds directory"""
         self.world_list.clear()
+        
+        # Add demo world for testing
+        demo_item = QListWidgetItem("🌍 Demo World (Testing)")
+        demo_item.setData(Qt.UserRole, {"type": "demo", "path": "demo"})
+        self.world_list.addItem(demo_item)
+        
+        # Try to load real worlds if accessible
         if os.path.exists(MINECRAFT_WORLDS_PATH):
-            for folder in os.listdir(MINECRAFT_WORLDS_PATH):
-                world_path = os.path.join(MINECRAFT_WORLDS_PATH, folder)
-                level_dat = os.path.join(world_path, "level.dat")
-                levelname_txt = os.path.join(world_path, "levelname.txt")
-                icon_path = os.path.join(world_path, "world_icon.png")
-                
-                if not os.path.exists(icon_path):
-                    icon_path = os.path.join(world_path, "icon.png")
-                if not os.path.exists(icon_path):
-                    icon_path = os.path.join(world_path, "world_icon.jpeg")
-                
-                world_name = folder
-                
-                # Try to get name from levelname.txt
-                if os.path.exists(levelname_txt):
-                    try:
-                        with open(levelname_txt, "r", encoding="utf-8") as f:
-                            txt_name = f.read().strip()
-                            if txt_name:
-                                world_name = txt_name
-                    except Exception:
-                        pass
-                
-                # Create widget custom untuk world
-                item_widget = GUIComponents.create_world_list_item(world_name, icon_path, world_path)
-                
-                # Tambahkan ke QListWidget
-                item = QListWidgetItem()
-                item.setSizeHint(item_widget.sizeHint())
-                self.world_list.addItem(item)
-                self.world_list.setItemWidget(item, item_widget)
+            try:
+                for folder in os.listdir(MINECRAFT_WORLDS_PATH):
+                    world_path = os.path.join(MINECRAFT_WORLDS_PATH, folder)
+                    level_dat = os.path.join(world_path, "level.dat")
+                    levelname_txt = os.path.join(world_path, "levelname.txt")
+                    icon_path = os.path.join(world_path, "world_icon.png")
+                    
+                    if not os.path.exists(icon_path):
+                        icon_path = os.path.join(world_path, "icon.png")
+                    if not os.path.exists(icon_path):
+                        icon_path = os.path.join(world_path, "world_icon.jpeg")
+                    
+                    world_name = folder
+                    
+                    # Try to get name from levelname.txt
+                    if os.path.exists(levelname_txt):
+                        try:
+                            with open(levelname_txt, "r", encoding="utf-8") as f:
+                                txt_name = f.read().strip()
+                                if txt_name:
+                                    world_name = txt_name
+                        except Exception:
+                            pass
+                    
+                    # Create widget custom untuk world
+                    item_widget = GUIComponents.create_world_list_item(world_name, icon_path, world_path)
+                    
+                    # Tambahkan ke QListWidget
+                    item = QListWidgetItem()
+                    item.setSizeHint(item_widget.sizeHint())
+                    item.setData(Qt.UserRole, {"type": "real", "path": world_path})
+                    self.world_list.addItem(item)
+                    self.world_list.setItemWidget(item, item_widget)
+                    
+            except PermissionError:
+                print("⚠️ Permission denied accessing Minecraft worlds")
+                # Add permission error item
+                error_item = QListWidgetItem("🔒 Permission Denied")
+                error_item.setData(Qt.UserRole, {"type": "error", "path": "permission"})
+                self.world_list.addItem(error_item)
+        else:
+            print("⚠️ Minecraft worlds path not found")
+            # Add not found item
+            not_found_item = QListWidgetItem("❌ Worlds Not Found")
+            not_found_item.setData(Qt.UserRole, {"type": "error", "path": "not_found"})
+            self.world_list.addItem(not_found_item)
+
+    def load_demo_data(self):
+        """Load demo data for testing without admin access"""
+        print("🎮 Loading demo data for testing...")
+        
+        # Create demo NBT data
+        demo_data = {
+            "LevelName": "Demo World",
+            "GameType": 0,
+            "Generator": 1,
+            "LastPlayed": 1234567890,
+            "SizeOnDisk": 1024000,
+            "RandomSeed": 12345,
+            "SpawnX": 0,
+            "SpawnY": 64,
+            "SpawnZ": 0,
+            "Time": 1000,
+            "DayTime": 6000,
+            "GameRules": {
+                "doFireTick": True,
+                "doMobSpawning": True,
+                "doTileDrops": True,
+                "keepInventory": False,
+                "naturalRegeneration": True
+            },
+            "abilities": {
+                "flying": False,
+                "instabuild": False,
+                "invulnerable": False,
+                "mayfly": False,
+                "walking": True
+            }
+        }
+        
+        self.nbt_data = demo_data
+        self.nbt_file = "demo_data.json"
+        self.nbt_reader = None  # Use nbtlib fallback
+        
+        # Clear any previous search results
+        self.search_utils.clear_search()
+        
+        # Populate tree with demo data
+        self.populate_tree(self.nbt_data)
+        
+        # Update window title
+        self.setWindowTitle("Bedrock NBT/DAT Editor - No Admin Mode - Demo Data")
+        
+        print("✅ Demo data loaded successfully")
 
     def on_world_selected(self, item):
         """Handle world selection"""
+        item_data = item.data(Qt.UserRole)
+        if not item_data:
+            return
+            
+        item_type = item_data.get("type")
+        
+        if item_type == "demo":
+            self.load_demo_data()
+            return
+        elif item_type == "error":
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Warning)
+            msg.setWindowTitle("Access Denied")
+            msg.setText("Cannot access Minecraft worlds without administrator privileges.\n\nUse 'Load Demo Data' button for testing.")
+            msg.setStyleSheet(GUIComponents.get_warning_message_box_style())
+            msg.exec_()
+            return
+        
         # Set flag immediately to prevent any itemChanged signals during world loading
         self.is_programmatic_change = True
         
         # Clear current data and state before loading new world
         self.clear_current_data()
         
-        # Find folder based on order in world_list
-        idx = self.world_list.row(item)
-        folder = os.listdir(MINECRAFT_WORLDS_PATH)[idx]
-        world_path = os.path.join(MINECRAFT_WORLDS_PATH, folder)
+        world_path = item_data.get("path")
         level_dat = os.path.join(world_path, "level.dat")
         
         if os.path.exists(level_dat):
@@ -359,7 +437,7 @@ class NBTEditor(QMainWindow):
 
     def open_file(self):
         """Open NBT file manually"""
-        file_path, _ = QFileDialog.getOpenFileName(self, "Buka File NBT/DAT", "", "NBT/DAT Files (*.nbt *.dat)")
+        file_path, _ = QFileDialog.getOpenFileName(self, "Buka File NBT/DAT", "", "NBT/DAT Files (*.nbt *.dat);;JSON Files (*.json);;All Files (*)")
         if file_path:
             # Set flag immediately to prevent any itemChanged signals during file loading
             self.is_programmatic_change = True
@@ -369,40 +447,48 @@ class NBTEditor(QMainWindow):
             
             self.nbt_file = file_path
             try:
-                # Try custom NBT parser first
-                print(f"Loading {file_path} with custom NBT parser...")
-                self.nbt_reader = NBTReader()
-                self.nbt_data = self.nbt_reader.read_nbt_file(file_path)
-                
-                # If custom parser returns empty data, try nbtlib as fallback
-                if not self.nbt_data or len(self.nbt_data) == 0:
-                    print("⚠️ Custom parser returned empty data, trying nbtlib...")
-                    import nbtlib
-                    
-                    # Try uncompressed first (Bedrock Edition)
-                    try:
-                        nbt_data = nbtlib.load(file_path, gzipped=False)
-                        print("✅ Successfully loaded with nbtlib (uncompressed)")
-                    except Exception as e1:
-                        print(f"⚠️ Failed to load as uncompressed: {e1}")
-                        # Try gzipped (Java Edition)
-                        try:
-                            nbt_data = nbtlib.load(file_path, gzipped=True)
-                            print("✅ Successfully loaded with nbtlib (gzipped)")
-                        except Exception as e2:
-                            print(f"❌ Failed to load with nbtlib: {e2}")
-                            raise Exception(f"Failed to load with both methods: uncompressed ({e1}), gzipped ({e2})")
-                    
-                    if hasattr(nbt_data, 'root'):
-                        self.nbt_data = dict(nbt_data.root)
-                    else:
-                        self.nbt_data = dict(nbt_data)
-                    
-                    # Create a simple structure for nbtlib data
+                # Check if it's a JSON file
+                if file_path.lower().endswith('.json'):
+                    print(f"Loading JSON file: {file_path}")
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        self.nbt_data = json.load(f)
                     self.nbt_reader = None
-                    print(f"✅ Successfully loaded with nbtlib: {len(self.nbt_data)} keys")
+                    print(f"✅ Successfully loaded JSON: {len(self.nbt_data)} keys")
                 else:
-                    print(f"✅ Successfully loaded with custom parser: {len(self.nbt_data)} keys")
+                    # Try custom NBT parser first
+                    print(f"Loading {file_path} with custom NBT parser...")
+                    self.nbt_reader = NBTReader()
+                    self.nbt_data = self.nbt_reader.read_nbt_file(file_path)
+                    
+                    # If custom parser returns empty data, try nbtlib as fallback
+                    if not self.nbt_data or len(self.nbt_data) == 0:
+                        print("⚠️ Custom parser returned empty data, trying nbtlib...")
+                        import nbtlib
+                        
+                        # Try uncompressed first (Bedrock Edition)
+                        try:
+                            nbt_data = nbtlib.load(file_path, gzipped=False)
+                            print("✅ Successfully loaded with nbtlib (uncompressed)")
+                        except Exception as e1:
+                            print(f"⚠️ Failed to load as uncompressed: {e1}")
+                            # Try gzipped (Java Edition)
+                            try:
+                                nbt_data = nbtlib.load(file_path, gzipped=True)
+                                print("✅ Successfully loaded with nbtlib (gzipped)")
+                            except Exception as e2:
+                                print(f"❌ Failed to load with nbtlib: {e2}")
+                                raise Exception(f"Failed to load with both methods: uncompressed ({e1}), gzipped ({e2})")
+                        
+                        if hasattr(nbt_data, 'root'):
+                            self.nbt_data = dict(nbt_data.root)
+                        else:
+                            self.nbt_data = dict(nbt_data)
+                        
+                        # Create a simple structure for nbtlib data
+                        self.nbt_reader = None
+                        print(f"✅ Successfully loaded with nbtlib: {len(self.nbt_data)} keys")
+                    else:
+                        print(f"✅ Successfully loaded with custom parser: {len(self.nbt_data)} keys")
                 
                 # Clear any previous search results
                 self.search_utils.clear_search()
@@ -427,24 +513,21 @@ class NBTEditor(QMainWindow):
             try:
                 print(f"💾 Saving file: {self.nbt_file}")
                 
-                # Create a backup of the original file
-                backup_file = self.nbt_file + ".backup"
-                if os.path.exists(self.nbt_file):
-                    import shutil
-                    shutil.copy2(self.nbt_file, backup_file)
-                    print(f"✅ Backup created: {backup_file}")
-                
                 # Save as JSON for now (simplified approach)
-                json_file = self.nbt_file.replace('.dat', '.json')
-                with open(json_file, 'w', encoding='utf-8') as f:
+                if self.nbt_file.endswith('.json'):
+                    save_path = self.nbt_file
+                else:
+                    save_path = self.nbt_file.replace('.dat', '.json').replace('.nbt', '.json')
+                
+                with open(save_path, 'w', encoding='utf-8') as f:
                     json.dump(self.nbt_data, f, indent=2, ensure_ascii=False)
-                print(f"✅ Saved as JSON: {json_file}")
+                print(f"✅ Saved as JSON: {save_path}")
                 
                 # Success message
                 msg = QMessageBox()
                 msg.setIcon(QMessageBox.Information)
                 msg.setWindowTitle("Sukses")
-                msg.setText(f"Data disimpan sebagai JSON:\n{json_file}")
+                msg.setText(f"Data disimpan sebagai JSON:\n{save_path}")
                 msg.setStyleSheet(GUIComponents.get_message_box_style())
                 msg.exec_()
                     
@@ -466,8 +549,6 @@ class NBTEditor(QMainWindow):
             msg.setText("Tidak ada file yang terbuka untuk disimpan!")
             msg.setStyleSheet(GUIComponents.get_warning_message_box_style())
             msg.exec_()
-
-
 
     def get_type_color(self, type_name):
         """Get color for different NBT types"""
@@ -515,23 +596,14 @@ class NBTEditor(QMainWindow):
 
     def _build_tree_hierarchy(self, structure, parent_item):
         """Build hierarchical tree from NBT structure"""
-        # Create a mapping of field names to tree items
-        item_map = {}
+        # Group items by their parent-child relationships
+        parent_items = {}
+        root_items = []
         
-        # First pass: create all items and establish parent-child relationships
+        # First pass: create all items
         for field_name, value, type_name, level in structure:
             # Create tree item
-            if level == 0:
-                tree_item = QTreeWidgetItem(parent_item)
-            else:
-                # Find parent item
-                parent_name = self._get_parent_name(field_name)
-                if parent_name in item_map:
-                    tree_item = QTreeWidgetItem(item_map[parent_name])
-                else:
-                    # Fallback: add to root
-                    tree_item = QTreeWidgetItem(parent_item)
-            
+            tree_item = QTreeWidgetItem()
             tree_item.setText(0, type_name)  # Type column
             tree_item.setText(1, field_name)  # Name column
             tree_item.setText(2, str(value))  # Value column
@@ -557,16 +629,25 @@ class NBTEditor(QMainWindow):
                 dummy_child.setText(2, "")
                 dummy_child.setHidden(True)
             
-            # Check if this item has children (entries) and add arrow indicator
-            # Check if there are any child items for this field
-            has_children = any(child_field.startswith(field_name + '.') or 
-                             (field_name in child_field and '[' in child_field and field_name == child_field.split('[')[0])
-                             for child_field, _, _, child_level in structure if child_level > level)
-            if has_children:
-                tree_item.setChildIndicatorPolicy(QTreeWidgetItem.ShowIndicator)
+            # Store item for parent-child relationship
+            if level == 0:
+                root_items.append(tree_item)
+            else:
+                # Find parent based on field name hierarchy
+                parent_name = self._get_parent_name(field_name)
+                if parent_name not in parent_items:
+                    parent_items[parent_name] = []
+                parent_items[parent_name].append(tree_item)
+        
+        # Second pass: establish parent-child relationships
+        for item in root_items:
+            field_name = item.text(1)
+            parent_item.addChild(item)
             
-            # Store item in map for parent-child relationships
-            item_map[field_name] = tree_item
+            # Add children if this is a parent
+            if field_name in parent_items:
+                for child_item in parent_items[field_name]:
+                    item.addChild(child_item)
     
     def _get_parent_name(self, field_name):
         """Extract parent name from field name"""
@@ -630,13 +711,6 @@ class NBTEditor(QMainWindow):
                 dummy_child.setText(1, "")
                 dummy_child.setText(2, "")
                 dummy_child.setHidden(True)
-            
-            # Check if this item has children (entries) and add arrow indicator
-            # For dict items, check if they have nested items
-            if isinstance(value, (dict, list)) and len(value) > 0:
-                tree_item.setChildIndicatorPolicy(QTreeWidgetItem.ShowIndicator)
-    
-
 
     def on_tree_item_double_clicked(self, item, column):
         """Handle double-click untuk inline editing"""
@@ -690,11 +764,11 @@ class NBTEditor(QMainWindow):
                             print(f"✅ Updated {field_name}: {original_value} → {new_value}")
                             
                             # Update window title
-                            self.setWindowTitle("Bedrock NBT/DAT Editor (Generic Parser) - *Modified")
+                            self.setWindowTitle("Bedrock NBT/DAT Editor - No Admin Mode - *Modified")
                             
                     except Exception as e:
                         print(f"❌ Error parsing value: {e}")
-                            
+                        
             except Exception as e:
                 print(f"❌ Error updating value: {e}")
     
@@ -719,6 +793,6 @@ class NBTEditor(QMainWindow):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    window = NBTEditor()
+    window = NBTEditorNoAdmin()
     window.show()
     sys.exit(app.exec_())
