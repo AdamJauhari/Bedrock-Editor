@@ -1,4 +1,5 @@
 from PyQt5.QtGui import QColor
+from PyQt5.QtCore import Qt
 
 class SearchUtils:
     """Utility class for search and filtering functionality"""
@@ -92,6 +93,12 @@ class SearchUtils:
                     item.setForeground(1, QColor("#ffffff"))  # White text for name
                     item.setForeground(2, QColor("#ffffff"))  # White text for value
                     # Keep original type color, don't override
+                    
+                    # Show the item
+                    item.setHidden(False)
+                else:
+                    # Hide items that don't match
+                    item.setHidden(True)
                 
                 # Recursively search children
                 if item.childCount() > 0:
@@ -153,7 +160,7 @@ class SearchUtils:
         if not was_programmatic and self.main_window:
             self.main_window.is_programmatic_change = True
         
-        # Reset colors for all tree items recursively
+        # Reset colors and visibility for all tree items recursively
         def reset_tree_items(parent_item):
             for i in range(parent_item.childCount()):
                 item = parent_item.child(i)
@@ -162,6 +169,9 @@ class SearchUtils:
                 item.setBackground(1, QColor("transparent"))
                 item.setBackground(2, QColor("transparent"))
                 self.restore_item_colors(item)
+                
+                # Show the item (unhide)
+                item.setHidden(False)
                 
                 # Recursively reset children
                 if item.childCount() > 0:
@@ -217,7 +227,12 @@ class SearchUtils:
         
         # Set default colors for other columns
         item.setForeground(1, QColor("#e1e1e1"))  # Name column
-        item.setForeground(2, QColor("#e1e1e1"))  # Value column
+        
+        # Check if item is editable to set correct value column color
+        if item.flags() & Qt.ItemIsEditable:
+            item.setForeground(2, QColor("#e1e1e1"))  # Normal color for editable items
+        else:
+            item.setForeground(2, QColor("#888888"))  # Dimmed color for non-editable items
         
         # Reset flag hanya jika kita yang set
         if not was_programmatic and self.main_window:

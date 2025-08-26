@@ -28,6 +28,13 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QIcon, QColor, QPainter, QFont
 
+def is_admin():
+    """Check if the current process has administrator privileges"""
+    try:
+        return ctypes.windll.shell32.IsUserAnAdmin()
+    except:
+        return False
+
 class CustomBranchDelegate(QStyledItemDelegate):
     """Custom delegate to draw arrow symbols for tree branches"""
     
@@ -60,19 +67,12 @@ class CustomBranchDelegate(QStyledItemDelegate):
                     
                     painter.restore()
 
-def is_admin():
-    """Check if the current process has administrator privileges"""
-    try:
-        return ctypes.windll.shell32.IsUserAnAdmin()
-    except:
-        return False
-
 def run_as_admin():
     """Restart the application with administrator privileges"""
     try:
         if not is_admin():
             # Re-run the program with admin rights
-            ctypes.windll.shell32.ShellExecuteW(
+            result = ctypes.windll.shell32.ShellExecuteW(
                 None, 
                 "runas", 
                 sys.executable, 
@@ -80,11 +80,15 @@ def run_as_admin():
                 None, 
                 1
             )
-            sys.exit(0)
+            if result > 32:  # Success
+                sys.exit(0)
+            else:
+                print("⚠️ User cancelled admin elevation")
+                return False
     except Exception as e:
         print(f"Failed to elevate privileges: {e}")
         return False
-    return True
+    return False  # Don't exit if already admin
 
 def check_admin_privileges():
     """Check and request admin privileges if needed"""
@@ -92,9 +96,12 @@ def check_admin_privileges():
         print("⚠️ Program membutuhkan hak akses Administrator untuk mengakses file Minecraft")
         print("🔄 Memulai ulang program dengan hak akses Administrator...")
         
-        # Elevate privileges without showing message box first
-        run_as_admin()
-        return False
+        # Try to elevate privileges
+        if run_as_admin():
+            return False  # Exit if elevation is needed
+        else:
+            print("⚠️ Gagal mendapatkan hak akses Administrator, menjalankan dalam mode terbatas...")
+            return True  # Continue in limited mode
     else:
         print("✅ Program berjalan dengan hak akses Administrator")
         return True
@@ -104,8 +111,7 @@ class NBTEditor(QMainWindow):
         super().__init__()
         
         # Check admin privileges first
-        if not check_admin_privileges():
-            return  # Exit if elevation is needed
+        self.admin_mode = check_admin_privileges()
         
         self.setWindowTitle("Bedrock NBT/DAT Editor (Generic Parser)")
         self.setGeometry(100, 100, 1200, 800)
@@ -159,6 +165,21 @@ class NBTEditor(QMainWindow):
         world_label = QLabel("Minecraft Worlds:")
         world_label.setStyleSheet("font-weight: bold; font-size: 14px; color: #ffffff; margin-bottom: 10px;")
         left_panel.addWidget(world_label)
+        
+        # Admin mode warning (if not in admin mode)
+        if not self.admin_mode:
+            admin_warning = QLabel("⚠️ Limited Access Mode - Some features may be restricted")
+            admin_warning.setStyleSheet("""
+                color: #ff9500;
+                font-size: 12px;
+                font-weight: bold;
+                padding: 8px;
+                background-color: rgba(255, 149, 0, 0.1);
+                border: 1px solid rgba(255, 149, 0, 0.3);
+                border-radius: 6px;
+                margin-bottom: 10px;
+            """)
+            left_panel.addWidget(admin_warning)
         
         # World list widget
         self.world_list = QListWidget()
@@ -280,50 +301,77 @@ class NBTEditor(QMainWindow):
         """Load Minecraft worlds from the worlds directory"""
         self.world_list.clear()
         if os.path.exists(MINECRAFT_WORLDS_PATH):
-            for folder in os.listdir(MINECRAFT_WORLDS_PATH):
-                world_path = os.path.join(MINECRAFT_WORLDS_PATH, folder)
-                level_dat = os.path.join(world_path, "level.dat")
-                levelname_txt = os.path.join(world_path, "levelname.txt")
-                icon_path = os.path.join(world_path, "world_icon.png")
-                
-                if not os.path.exists(icon_path):
-                    icon_path = os.path.join(world_path, "icon.png")
-                if not os.path.exists(icon_path):
-                    icon_path = os.path.join(world_path, "world_icon.jpeg")
-                
-                world_name = folder
-                
-                # Try to get name from levelname.txt
-                if os.path.exists(levelname_txt):
-                    try:
-                        with open(levelname_txt, "r", encoding="utf-8") as f:
-                            txt_name = f.read().strip()
-                            if txt_name:
-                                world_name = txt_name
-                    except Exception:
-                        pass
-                
-                # Create widget custom untuk world
-                item_widget = GUIComponents.create_world_list_item(world_name, icon_path, world_path)
-                
-                # Tambahkan ke QListWidget
-                item = QListWidgetItem()
-                item.setSizeHint(item_widget.sizeHint())
-                self.world_list.addItem(item)
-                self.world_list.setItemWidget(item, item_widget)
+            try:
+                for folder in os.listdir(MINECRAFT_WORLDS_PATH):
+                    world_path = os.path.join(MINECRAFT_WORLDS_PATH, folder)
+                    level_dat = os.path.join(world_path, "level.dat")
+                    levelname_txt = os.path.join(world_path, "levelname.txt")
+                    icon_path = os.path.join(world_path, "world_icon.png")
+                    
+                    if not os.path.exists(icon_path):
+                        icon_path = os.path.join(world_path, "icon.png")
+                    if not os.path.exists(icon_path):
+                        icon_path = os.path.join(world_path, "world_icon.jpeg")
+                    
+                    world_name = folder
+                    
+                    # Try to get name from levelname.txt
+                    if os.path.exists(levelname_txt):
+                        try:
+                            with open(levelname_txt, "r", encoding="utf-8") as f:
+                                txt_name = f.read().strip()
+                                if txt_name:
+                                    world_name = txt_name
+                        except Exception:
+                            pass
+                    
+                    # Create widget custom untuk world
+                    item_widget = GUIComponents.create_world_list_item(world_name, icon_path, world_path)
+                    
+                    # Tambahkan ke QListWidget
+                    item = QListWidgetItem()
+                    item.setSizeHint(item_widget.sizeHint())
+                    item.setData(Qt.UserRole, {"type": "real", "path": world_path})
+                    self.world_list.addItem(item)
+                    self.world_list.setItemWidget(item, item_widget)
+                    
+            except PermissionError:
+                print("⚠️ Permission denied accessing Minecraft worlds")
+                # Add permission error item
+                error_item = QListWidgetItem("🔒 Permission Denied")
+                error_item.setData(Qt.UserRole, {"type": "error", "path": "permission"})
+                self.world_list.addItem(error_item)
+        else:
+            print("⚠️ Minecraft worlds path not found")
+            # Add not found item
+            not_found_item = QListWidgetItem("❌ Worlds Not Found")
+            not_found_item.setData(Qt.UserRole, {"type": "error", "path": "not_found"})
+            self.world_list.addItem(not_found_item)
 
     def on_world_selected(self, item):
         """Handle world selection"""
+        item_data = item.data(Qt.UserRole)
+        if not item_data:
+            return
+            
+        item_type = item_data.get("type")
+        
+        if item_type == "error":
+            msg = QMessageBox(self)
+            msg.setIcon(QMessageBox.Warning)
+            msg.setWindowTitle("Access Error")
+            msg.setText("Cannot access Minecraft worlds.\n\nPlease run as administrator or check file permissions.")
+            msg.setStyleSheet(GUIComponents.get_warning_message_box_style())
+            msg.exec_()
+            return
+        
         # Set flag immediately to prevent any itemChanged signals during world loading
         self.is_programmatic_change = True
         
         # Clear current data and state before loading new world
         self.clear_current_data()
         
-        # Find folder based on order in world_list
-        idx = self.world_list.row(item)
-        folder = os.listdir(MINECRAFT_WORLDS_PATH)[idx]
-        world_path = os.path.join(MINECRAFT_WORLDS_PATH, folder)
+        world_path = item_data.get("path")
         level_dat = os.path.join(world_path, "level.dat")
         
         if os.path.exists(level_dat):
