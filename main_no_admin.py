@@ -20,10 +20,43 @@ from gui_components import GUIComponents
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
     QListWidget, QListWidgetItem, QTreeWidget, QTreeWidgetItem,
-    QLineEdit, QPushButton, QFileDialog, QMessageBox, QHeaderView
+    QLineEdit, QPushButton, QFileDialog, QMessageBox, QHeaderView,
+    QStyledItemDelegate
 )
 from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QIcon, QColor
+from PyQt5.QtGui import QIcon, QColor, QPainter, QFont
+
+class CustomBranchDelegate(QStyledItemDelegate):
+    """Custom delegate to draw arrow symbols for tree branches"""
+    
+    def paint(self, painter, option, index):
+        # Call parent paint method first
+        super().paint(painter, option, index)
+        
+        # Only paint for the first column (type column)
+        if index.column() == 0:
+            tree_widget = self.parent()
+            if tree_widget:
+                item = tree_widget.itemFromIndex(index)
+                if item and item.childCount() > 0:
+                    # Draw arrow symbol
+                    painter.save()
+                    painter.setPen(QColor("#00bfff"))
+                    font = QFont("Segoe UI", 12, QFont.Bold)
+                    painter.setFont(font)
+                    
+                    # Position for arrow - move to the left to avoid collision with type
+                    rect = option.rect
+                    x = rect.x() - 20  # Move further left to avoid type column
+                    y = rect.y() + rect.height() // 2 + 4
+                    
+                    # Draw arrow based on expanded state
+                    if item.isExpanded():
+                        painter.drawText(x, y, "▼")
+                    else:
+                        painter.drawText(x, y, "▶")
+                    
+                    painter.restore()
 
 class NBTEditorNoAdmin(QMainWindow):
     def __init__(self):
@@ -150,6 +183,9 @@ class NBTEditorNoAdmin(QMainWindow):
         # Set tree properties
         self.tree.setSelectionBehavior(QTreeWidget.SelectRows)
         self.tree.setEditTriggers(QTreeWidget.NoEditTriggers)
+        
+        # Set custom delegate for branch indicators
+        self.tree.setItemDelegateForColumn(0, CustomBranchDelegate(self.tree))
         
         center_layout.addWidget(self.tree)
         main_layout.addLayout(center_layout, 4)  # 4 = most space for table
@@ -698,9 +734,17 @@ class NBTEditorNoAdmin(QMainWindow):
             # Store original data for editing
             tree_item.setData(0, Qt.UserRole, (key, value, type_name))
             
-            # Make value column editable for primitive types
-            if type_name not in ['COMP', 'LIST']:
+            # Check if this item has children (entries)
+            has_children = isinstance(value, (dict, list)) and len(value) > 0
+            
+            # Make value column editable ONLY for primitive types that don't have children
+            if type_name not in ['COMP', 'LIST'] and not has_children:
                 tree_item.setFlags(tree_item.flags() | Qt.ItemIsEditable)
+            else:
+                # Remove editable flag for compound/list types or items with children
+                tree_item.setFlags(tree_item.flags() & ~Qt.ItemIsEditable)
+                # Set visual indication that this item is not editable (slightly dimmed)
+                tree_item.setForeground(2, QColor("#888888"))
             
             # Set expandable for compound and list types
             if type_name in ['COMP', 'LIST']:
@@ -714,11 +758,15 @@ class NBTEditorNoAdmin(QMainWindow):
 
     def on_tree_item_double_clicked(self, item, column):
         """Handle double-click untuk inline editing"""
-        # Allow editing for value column (column 2)
+        # Allow editing for value column (column 2) only if item is editable
         if column == 2:  # Value column
-            item.setFlags(item.flags() | Qt.ItemIsEditable)
-            # For QTreeWidget, we need to start editing the cell
-            self.tree.editItem(item, column)
+            # Check if item is editable (has Qt.ItemIsEditable flag)
+            if item.flags() & Qt.ItemIsEditable:
+                # For QTreeWidget, we need to start editing the cell
+                self.tree.editItem(item, column)
+            else:
+                # Show message that this item cannot be edited
+                print(f"⚠️ Item '{item.text(1)}' cannot be edited (compound/list type or has children)")
 
     def on_item_changed(self, item, column):
         """Handle perubahan value dengan dialog konfirmasi"""

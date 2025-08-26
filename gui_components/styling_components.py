@@ -160,8 +160,9 @@ class StylingComponents:
             }
             QTreeWidget::branch {
                 background-color: transparent;
-                width: 20px;
+                width: 25px;
                 height: 20px;
+                margin-left: -5px;
             }
             QTreeWidget::branch:has-children:!has-siblings:closed,
             QTreeWidget::branch:closed:has-children:has-siblings {
@@ -171,11 +172,11 @@ class StylingComponents:
                 color: #00bfff;
                 font-size: 18px;
                 font-weight: bold;
-                padding-left: 4px;
+                padding-left: 0px;
                 text-align: center;
                 border: none;
                 border-radius: 0px;
-                margin: 1px;
+                margin-left: -5px;
             }
             QTreeWidget::branch:open:has-children:!has-siblings,
             QTreeWidget::branch:open:has-children:has-siblings {
@@ -185,11 +186,11 @@ class StylingComponents:
                 color: #00bfff;
                 font-size: 18px;
                 font-weight: bold;
-                padding-left: 4px;
+                padding-left: 0px;
                 text-align: center;
                 border: none;
                 border-radius: 0px;
-                margin: 1px;
+                margin-left: -5px;
             }
 
             QTreeWidget QLineEdit {
