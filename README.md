@@ -41,17 +41,40 @@ A powerful GUI application for editing Minecraft Bedrock Edition NBT/DAT files w
 
 ## Project Structure
 
-The application has been modularized for better maintainability:
+The application has been modularized for better maintainability and organization:
 
 ### Core Files
-- **`main.py`**: Entry point - imports and runs the application
-- **`main_app.py`**: Main application class and GUI logic
-- **`package_manager.py`**: Handles package installation and imports
-- **`minecraft_paths.py`**: Manages Minecraft world path detection across platforms
-- **`nbt_utils.py`**: NBT conversion and utility functions
-- **`bedrock_parser.py`**: Manual Bedrock NBT parsing for problematic files
+- **`main.py`**: Entry point for admin mode - imports and runs the application with administrator privileges
+- **`main_no_admin.py`**: Entry point for no-admin mode - runs without requiring administrator privileges for development/testing
+- **`app.manifest`**: Windows manifest file for administrator privileges
+- **`create_shortcut.bat`**: Batch script to create desktop shortcut with admin privileges
+
+### Modular Components
+
+#### 📁 `gui_components/` - GUI Components Package
+- **`__init__.py`**: Package initialization and exports
+- **`admin_utils.py`**: Administrator privileges handling and elevation
+- **`world_manager.py`**: Minecraft world loading and management
+- **`file_operations.py`**: File opening, saving, and NBT data management
+- **`tree_manager.py`**: NBT data tree display and editing functionality
+- **`styling_components.py`**: CSS styling for all GUI components
+- **`button_components.py`**: Button styling and interactive elements
+- **`message_box_components.py`**: Message box styling for different types
+- **`world_list_components.py`**: World list item creation and display
+
+#### 📁 `nbt_utility/` - NBT Utility Package
+- **`__init__.py`**: Package initialization and exports
+- **`nbt_editor.py`**: NBT file editing and saving functionality
+- **`nbt_reader/`**: NBT reading and parsing components
+  - **`__init__.py`**: Package initialization
+  - **`bedrock_nbt_parser.py`**: Bedrock NBT parser for table format conversion
+  - **`raw_nbt_reader.py`**: Raw NBT file reading and parsing
+
+#### 📁 `resource/` - Resource Package
+- **`__init__.py`**: Package initialization and exports
+- **`minecraft_paths.py`**: Minecraft world path detection across platforms
+- **`package_manager.py`**: Package installation and dependency management
 - **`search_utils.py`**: Search and filtering functionality
-- **`gui_components.py`**: GUI styling and component utilities
 
 ### Assets
 - **`icon.png`**: Application icon
@@ -65,8 +88,20 @@ The application has been modularized for better maintainability:
    - amulet-nbt (optional, for better Bedrock support)
 
 2. **Run the Application**:
+
+   **Admin Mode** (Full functionality):
    ```bash
    python main.py
+   ```
+
+   **No-Admin Mode** (Development/Testing):
+   ```bash
+   python main_no_admin.py
+   ```
+
+   **Create Desktop Shortcut** (Windows):
+   ```bash
+   create_shortcut.bat
    ```
 
 ## Usage
@@ -118,16 +153,18 @@ The application automatically detects Minecraft world paths on:
 ## Development
 
 ### Adding New Features
-1. **GUI Components**: Add styling methods to `gui_components.py`
-2. **NBT Utilities**: Add conversion functions to `nbt_utils.py`
-3. **Search Features**: Extend `search_utils.py` with new filtering options
-4. **Parsing**: Add new parser methods to `bedrock_parser.py`
+1. **GUI Components**: Add new components to `gui_components/` package
+2. **NBT Utilities**: Add new functionality to `nbt_utility/` package
+3. **Search Features**: Extend `resource/search_utils.py` with new filtering options
+4. **Styling**: Add new styles to `gui_components/styling_components.py`
 
 ### Code Organization
-- **Separation of Concerns**: Each module has a specific responsibility
-- **Reusable Components**: GUI styling and utilities are centralized
+- **Modular Architecture**: Each package has a specific responsibility
+- **Separation of Concerns**: GUI, NBT, and resource components are separated
+- **Reusable Components**: GUI styling and utilities are centralized in packages
 - **Error Handling**: Comprehensive error handling with user-friendly messages
 - **Documentation**: Inline comments and docstrings for maintainability
+- **Package Structure**: Clear organization with `__init__.py` files for proper imports
 
 ## Troubleshooting
 

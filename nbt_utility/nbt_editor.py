@@ -9,7 +9,7 @@ import gzip
 import shutil
 import json
 from typing import Dict, Any, List, Set, Optional, Tuple
-from nbt_reader.bedrock_nbt_parser import BedrockNBTParser
+from .nbt_reader.bedrock_nbt_parser import BedrockNBTParser
 
 # Import nbtlib for proper NBT encoding
 try:
@@ -19,7 +19,7 @@ except ImportError:
 
 
 
-class NBTEditor:
+class NBTFileEditor:
     """NBT Editor for editing and saving NBT/DAT files"""
     
     def __init__(self, file_path: str):
@@ -560,27 +560,35 @@ class NBTEditor:
             nbt_data = data[8:]
             
             # Apply modifications using byte-level approach
+            failed_fields = []
             for field_name, (original, new) in self.modified_fields.items():
                 if not self._modify_field_bytes(nbt_data, field_name, new):
                     print(f"❌ Failed to modify {field_name} at byte level")
-                    return False
+                    failed_fields.append(field_name)
             
-            # Combine header and modified NBT data
-            result = header + nbt_data
-            
-            # Write to file
-            with open(self.file_path, 'wb') as f:
-                f.write(result)
-                f.flush()
-                os.fsync(f.fileno())  # Ensure data is written to disk
-            
-            return True
+            # If all modifications succeeded, save the file
+            if not failed_fields:
+                # Combine header and modified NBT data
+                result = header + nbt_data
+                
+                # Write to file
+                with open(self.file_path, 'wb') as f:
+                    f.write(result)
+                    f.flush()
+                    os.fsync(f.fileno())  # Ensure data is written to disk
+                
+                return True
+            else:
+                print(f"⚠️ Byte-level modification failed for fields: {failed_fields}")
+                print("🔄 Falling back to nbtlib rebuild method...")
+                return self._rebuild_nbt_file()
             
         except Exception as e:
             print(f"❌ Error in byte-level modification: {e}")
             import traceback
             traceback.print_exc()
-            return False
+            print("🔄 Falling back to nbtlib rebuild method...")
+            return self._rebuild_nbt_file()
     
     def _modify_field_bytes(self, nbt_data: bytearray, field_name: str, new_value: Any) -> bool:
         """Modify a field at the byte level"""
@@ -613,6 +621,29 @@ class NBTEditor:
                     return True
                 else:
                     print(f"❌ Value {new_value} out of range for TAG_Int")
+                    return False
+            elif tag_type == 8:  # TAG_String
+                if isinstance(new_value, str):
+                    # Get current string length
+                    current_length = struct.unpack('<h', nbt_data[value_pos:value_pos+2])[0]
+                    new_bytes = new_value.encode('utf-8')
+                    new_length = len(new_bytes)
+                    
+                    # Check if new string fits in the same space
+                    if new_length <= current_length:
+                        # Update length
+                        nbt_data[value_pos:value_pos+2] = struct.pack('<h', new_length)
+                        # Update string content
+                        nbt_data[value_pos+2:value_pos+2+new_length] = new_bytes
+                        # Pad with zeros if needed
+                        if new_length < current_length:
+                            nbt_data[value_pos+2+new_length:value_pos+2+current_length] = b'\x00' * (current_length - new_length)
+                        return True
+                    else:
+                        print(f"❌ New string too long for field {field_name}: {new_length} > {current_length}")
+                        return False
+                else:
+                    print(f"❌ Value {new_value} is not a string for TAG_String")
                     return False
             else:
                 print(f"❌ Unsupported tag type {tag_type} for field {field_name}")

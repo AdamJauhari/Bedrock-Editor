@@ -7,6 +7,10 @@ from .world_list_components import WorldListComponents
 from .styling_components import StylingComponents, EnhancedTypeDelegate
 from .message_box_components import MessageBoxComponents
 from .button_components import ButtonComponents
+from .admin_utils import is_admin, run_as_admin, check_admin_privileges
+from .world_manager import WorldManager
+from .file_operations import FileOperations
+from .tree_manager import TreeManager
 
 # For backward compatibility
 class GUIComponents:
@@ -50,5 +54,11 @@ __all__ = [
     'StylingComponents',
     'MessageBoxComponents',
     'ButtonComponents',
-    'EnhancedTypeDelegate'
+    'EnhancedTypeDelegate',
+    'is_admin',
+    'run_as_admin', 
+    'check_admin_privileges',
+    'WorldManager',
+    'FileOperations',
+    'TreeManager'
 ]

@@ -6,17 +6,17 @@ Runs without requiring administrator privileges for development and testing
 
 import sys
 import os
-import shutil
 from typing import Any
 
-
 # Import our separated modules
-from package_manager import *
-from minecraft_paths import MINECRAFT_WORLDS_PATH
-from nbt_reader.bedrock_nbt_parser import BedrockNBTParser as NBTReader
-from search_utils import SearchUtils
-from gui_components import GUIComponents, EnhancedTypeDelegate
-from nbt_editor import NBTEditor as NBTFileEditor
+from resource.package_manager import *
+from resource import MINECRAFT_WORLDS_PATH
+from nbt_utility import BedrockNBTParser, NBTFileEditor
+from resource import SearchUtils
+from gui_components import (
+    GUIComponents, EnhancedTypeDelegate, 
+    WorldManager, FileOperations, TreeManager
+)
 
 # Additional imports needed for the main app
 from PyQt5.QtWidgets import (
@@ -28,9 +28,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QIcon, QColor, QPainter, QFont
 
-
-
-class NBTEditorNoAdmin(QMainWindow):
+class NBTEditorNoAdminMain(QMainWindow):
     def __init__(self):
         super().__init__()
         
@@ -46,6 +44,10 @@ class NBTEditorNoAdmin(QMainWindow):
         self.nbt_reader = None
         self.search_results = []
         
+        # Set up class references for components
+        self.nbt_reader_class = BedrockNBTParser
+        self.nbt_editor_class = NBTFileEditor
+        
         # Timer for search debouncing
         self.search_timer = QTimer()
         self.search_timer.setSingleShot(True)
@@ -54,7 +56,15 @@ class NBTEditorNoAdmin(QMainWindow):
         # Flag to prevent itemChanged signal during search/programmatic changes
         self.is_programmatic_change = False
         
+        # Initialize components first
+        self.world_manager = WorldManager(None, self)  # Will be set in init_ui
+        self.file_ops = FileOperations(self)
+        self.tree_manager = TreeManager(self)
+        
         self.init_ui()
+        
+        # Update world_manager with the actual widget
+        self.world_manager.world_list = self.world_list
         
         # Initialize search utilities after UI is created
         self.search_utils = SearchUtils(self.tree, self.search_input, self.search_status, self.search_timer, self)
@@ -63,14 +73,14 @@ class NBTEditorNoAdmin(QMainWindow):
         self.search_input.textChanged.connect(self.search_utils.on_search_text_changed)
         
         # Load worlds (will show limited access message)
-        self.load_worlds()
+        self.load_worlds_no_admin()
         
         # Connect world selection
-        self.world_list.itemClicked.connect(self.on_world_selected)
+        self.world_list.itemClicked.connect(self.on_world_selected_no_admin)
         
         # Connect table item editing
-        self.tree.itemDoubleClicked.connect(self.on_tree_item_double_clicked)
-        self.tree.itemChanged.connect(self.on_item_changed)
+        self.tree.itemDoubleClicked.connect(self.tree_manager.on_tree_item_double_clicked)
+        self.tree.itemChanged.connect(self.tree_manager.on_item_changed)
         
         print("✅ NBT Editor (No Admin) initialized successfully")
 
@@ -137,29 +147,7 @@ class NBTEditorNoAdmin(QMainWindow):
         
         # Tree widget for NBT data
         self.tree = QTreeWidget()
-        self.tree.setHeaderLabels(["Type", "Nama", "Value"])
-        self.tree.setAlternatingRowColors(True)
-        self.tree.setStyleSheet(GUIComponents.get_enhanced_tree_style())
-        
-        # Set column widths with stretch factors for responsive layout
-        self.tree.setColumnWidth(0, 100)  # Type column (fixed width) - wider for enhanced display
-        self.tree.setColumnWidth(1, 300)  # Nama column (initial width)
-        self.tree.setColumnWidth(2, 400)  # Value column (initial width)
-        
-        # Set stretch factors for responsive columns
-        self.tree.header().setStretchLastSection(True)  # Value column stretches
-        self.tree.header().setSectionResizeMode(0, QHeaderView.Fixed)  # Type fixed
-        self.tree.header().setSectionResizeMode(1, QHeaderView.Interactive)  # Nama interactive
-        self.tree.header().setSectionResizeMode(2, QHeaderView.Stretch)  # Value stretches
-        
-        # Set tree properties
-        self.tree.setSelectionBehavior(QTreeWidget.SelectRows)
-        self.tree.setEditTriggers(QTreeWidget.NoEditTriggers)
-        self.tree.setRootIsDecorated(False)  # Disable default branch indicators (using custom ones)
-        self.tree.setItemsExpandable(True)  # Allow items to be expanded
-        
-        # Set custom delegate for enhanced type display
-        self.tree.setItemDelegateForColumn(0, EnhancedTypeDelegate(self.tree))
+        self.tree_manager.setup_tree(self.tree)
         
         center_layout.addWidget(self.tree)
         main_layout.addLayout(center_layout, 4)  # 4 = most space for table
@@ -169,16 +157,14 @@ class NBTEditorNoAdmin(QMainWindow):
         
         # Action buttons
         open_button = QPushButton("Open File")
-        open_button.clicked.connect(self.open_file)
+        open_button.clicked.connect(self.file_ops.open_file)
         open_button.setStyleSheet(GUIComponents.get_button_style())
         right_panel.addWidget(open_button)
         
         save_button = QPushButton("Save")
-        save_button.clicked.connect(self.save_file)
+        save_button.clicked.connect(self.file_ops.save_file)
         save_button.setStyleSheet(GUIComponents.get_button_style())
         right_panel.addWidget(save_button)
-        
-
         
         # Demo data button for testing
         demo_button = QPushButton("Load Demo Data")
@@ -211,37 +197,7 @@ class NBTEditorNoAdmin(QMainWindow):
         central_widget.setLayout(main_layout)
         self.setStyleSheet("background-color: #181a20;")
 
-    def clear_current_data(self):
-        """Clear current data and reset state"""
-        try:
-            print("🧹 Clearing current data and state...")
-            
-            # Clear tree widget
-            self.tree.clear()
-            
-            # Clear search results
-            if hasattr(self, 'search_utils'):
-                self.search_utils.clear_search()
-            
-            # Reset data references
-            self.nbt_data = None
-            self.nbt_file = None
-            self.nbt_reader = None
-            self.nbt_editor = None  # NBT file editor instance
-            
-            # Reset window title
-            self.setWindowTitle("Bedrock NBT/DAT Editor - No Admin Mode")
-            
-            # Clear any pending operations
-            if hasattr(self, 'search_timer') and self.search_timer.isActive():
-                self.search_timer.stop()
-            
-            print("✅ Current data cleared successfully")
-            
-        except Exception as e:
-            print(f"❌ Error clearing current data: {e}")
-
-    def load_worlds(self):
+    def load_worlds_no_admin(self):
         """Load Minecraft worlds from the worlds directory"""
         self.world_list.clear()
         
@@ -340,15 +296,15 @@ class NBTEditorNoAdmin(QMainWindow):
         self.search_utils.clear_search()
         
         # Populate tree with demo data
-        self.populate_tree(self.nbt_data)
+        self.tree_manager.populate_tree(self.nbt_data)
         
         # Update window title
         self.setWindowTitle("Bedrock NBT/DAT Editor - No Admin Mode - Demo Data")
         
         print("✅ Demo data loaded successfully")
 
-    def on_world_selected(self, item):
-        """Handle world selection"""
+    def on_world_selected_no_admin(self, item):
+        """Handle world selection for no-admin mode"""
         item_data = item.data(Qt.UserRole)
         if not item_data:
             return
@@ -367,489 +323,23 @@ class NBTEditorNoAdmin(QMainWindow):
             msg.exec_()
             return
         
-        # Set flag immediately to prevent any itemChanged signals during world loading
-        self.is_programmatic_change = True
-        
-        # Clear current data and state before loading new world
-        self.clear_current_data()
-        
-        world_path = item_data.get("path")
-        level_dat = os.path.join(world_path, "level.dat")
-        
-        if os.path.exists(level_dat):
-            # Check file size first
-            file_size = os.path.getsize(level_dat)
-            if file_size < 100:  # File terlalu kecil
-                msg = QMessageBox(self)
-                msg.setIcon(QMessageBox.Critical)
-                msg.setWindowTitle("Error")
-                msg.setText(f"File level.dat terlalu kecil ({file_size} bytes). File mungkin kosong atau rusak.")
-                msg.setStyleSheet(GUIComponents.get_error_message_box_style())
-                msg.exec_()
-                self.is_programmatic_change = False
-                return
-            
-            self.nbt_file = level_dat
-            try:
-                # Try custom NBT parser first
-                print(f"Loading {level_dat} with custom NBT parser...")
-                self.nbt_reader = NBTReader()
-                self.nbt_data = self.nbt_reader.read_nbt_file(level_dat)
-                
-                # If custom parser returns empty data, try nbtlib as fallback
-                if not self.nbt_data or len(self.nbt_data) == 0:
-                    print("⚠️ Custom parser returned empty data, trying nbtlib...")
-                    import nbtlib
-                    
-                    # Try uncompressed first (Bedrock Edition)
-                    try:
-                        nbt_data = nbtlib.load(level_dat, gzipped=False)
-                        print("✅ Successfully loaded with nbtlib (uncompressed)")
-                    except Exception as e1:
-                        print(f"⚠️ Failed to load as uncompressed: {e1}")
-                        # Try gzipped (Java Edition)
-                        try:
-                            nbt_data = nbtlib.load(level_dat, gzipped=True)
-                            print("✅ Successfully loaded with nbtlib (gzipped)")
-                        except Exception as e2:
-                            print(f"❌ Failed to load with nbtlib: {e2}")
-                            raise Exception(f"Failed to load with both methods: uncompressed ({e1}), gzipped ({e2})")
-                    
-                    if hasattr(nbt_data, 'root'):
-                        self.nbt_data = dict(nbt_data.root)
-                    else:
-                        self.nbt_data = dict(nbt_data)
-                    
-                    # Create a simple structure for nbtlib data
-                    self.nbt_reader = None
-                    print(f"✅ Successfully loaded with nbtlib: {len(self.nbt_data)} keys")
-                else:
-                    print(f"✅ Successfully loaded with custom parser: {len(self.nbt_data)} keys")
-                
-                # Clear any previous search results
-                self.search_utils.clear_search()
-                
-                # Populate tree with NBT structure
-                self.populate_tree(self.nbt_data)
-                
-            except Exception as e:
-                msg = QMessageBox(self)
-                msg.setIcon(QMessageBox.Critical)
-                msg.setWindowTitle("Error")
-                msg.setText(f"Gagal membuka level.dat: {e}")
-                msg.setStyleSheet(GUIComponents.get_error_message_box_style())
-                msg.exec_()
-            finally:
-                # Always reset flag regardless of success or failure
-                self.is_programmatic_change = False
+        # Use the regular world manager for real worlds
+        self.world_manager.on_world_selected(item)
 
-    def open_file(self):
-        """Open NBT file manually"""
-        file_path, _ = QFileDialog.getOpenFileName(self, "Buka File NBT/DAT", "", "NBT/DAT Files (*.nbt *.dat);;JSON Files (*.json);;All Files (*)")
-        if file_path:
-            # Set flag immediately to prevent any itemChanged signals during file loading
-            self.is_programmatic_change = True
-            
-            # Clear current data and state before loading new file
-            self.clear_current_data()
-            
-            self.nbt_file = file_path
-            try:
-                # Try custom NBT parser first
-                print(f"Loading {file_path} with custom NBT parser...")
-                self.nbt_reader = NBTReader()
-                self.nbt_data = self.nbt_reader.read_nbt_file(file_path)
-                
-                # If custom parser returns empty data, try nbtlib as fallback
-                if not self.nbt_data or len(self.nbt_data) == 0:
-                    print("⚠️ Custom parser returned empty data, trying nbtlib...")
-                    import nbtlib
-                    
-                    # Try uncompressed first (Bedrock Edition)
-                    try:
-                        nbt_data = nbtlib.load(file_path, gzipped=False)
-                        print("✅ Successfully loaded with nbtlib (uncompressed)")
-                    except Exception as e1:
-                        print(f"⚠️ Failed to load as uncompressed: {e1}")
-                        # Try gzipped (Java Edition)
-                        try:
-                            nbt_data = nbtlib.load(file_path, gzipped=True)
-                            print("✅ Successfully loaded with nbtlib (gzipped)")
-                        except Exception as e2:
-                            print(f"❌ Failed to load with nbtlib: {e2}")
-                            raise Exception(f"Failed to load with both methods: uncompressed ({e1}), gzipped ({e2})")
-                    
-                    if hasattr(nbt_data, 'root'):
-                        self.nbt_data = dict(nbt_data.root)
-                    else:
-                        self.nbt_data = dict(nbt_data)
-                    
-                    # Create a simple structure for nbtlib data
-                    self.nbt_reader = None
-                    print(f"✅ Successfully loaded with nbtlib: {len(self.nbt_data)} keys")
-                else:
-                    print(f"✅ Successfully loaded with custom parser: {len(self.nbt_data)} keys")
-                
-                # Clear any previous search results
-                self.search_utils.clear_search()
-                
-                # Populate tree with NBT structure
-                self.populate_tree(self.nbt_data)
-                
-            except Exception as e:
-                msg = QMessageBox(self)
-                msg.setIcon(QMessageBox.Critical)
-                msg.setWindowTitle("Error")
-                msg.setText(f"Gagal membuka file: {e}")
-                msg.setStyleSheet(GUIComponents.get_error_message_box_style())
-                msg.exec_()
-            finally:
-                # Always reset flag regardless of success or failure
-                self.is_programmatic_change = False
-
-    def save_file(self):
-        """Save current data to file using NBTEditor"""
-        if self.nbt_file and self.nbt_data:
-            try:
-                print(f"💾 Saving file: {self.nbt_file}")
-                
-                # Initialize NBTEditor if not already done
-                if self.nbt_editor is None:
-                    self.nbt_editor = NBTFileEditor(self.nbt_file)
-                    self.nbt_editor.load_file()
-                
-                # Check if there are any modifications to save
-                if not self.nbt_editor.has_modifications():
-                    msg = QMessageBox()
-                    msg.setIcon(QMessageBox.Information)
-                    msg.setWindowTitle("Info")
-                    msg.setText("Tidak ada perubahan yang perlu disimpan.")
-                    msg.setStyleSheet(GUIComponents.get_message_box_style())
-                    msg.exec_()
-                    return
-                
-                # Get modified fields
-                modified_fields = self.nbt_editor.get_modified_fields()
-                
-                # Save the file
-                if self.nbt_editor.save_file(backup=True):
-                    # Success message
-                    msg = QMessageBox()
-                    msg.setIcon(QMessageBox.Information)
-                    msg.setWindowTitle("Sukses")
-                    msg.setText(f"File berhasil disimpan!\n\nPerubahan yang disimpan:\n" + 
-                              "\n".join([f"• {field}" for field in modified_fields[:10]]) + 
-                              (f"\n...dan {len(modified_fields) - 10} field lainnya" if len(modified_fields) > 10 else ""))
-                    msg.setStyleSheet(GUIComponents.get_message_box_style())
-                    msg.exec_()
-                    
-                    # Update window title to remove modification indicator
-                    self.setWindowTitle("Bedrock NBT/DAT Editor - No Admin Mode")
-                else:
-                    raise Exception("Failed to save file")
-                    
-            except Exception as e:
-                print(f"❌ Save error: {e}")
-                import traceback
-                traceback.print_exc()
-                
-                msg = QMessageBox(self)
-                msg.setIcon(QMessageBox.Critical)
-                msg.setWindowTitle("Error")
-                msg.setText(f"Gagal menyimpan file: {e}")
-                msg.setStyleSheet(GUIComponents.get_error_message_box_style())
-                msg.exec_()
-        else:
-            msg = QMessageBox()
-            msg.setIcon(QMessageBox.Warning)
-            msg.setWindowTitle("Peringatan")
-            msg.setText("Tidak ada file yang terbuka untuk disimpan!")
-            msg.setStyleSheet(GUIComponents.get_warning_message_box_style())
-            msg.exec_()
-
-    def get_type_color(self, type_name):
-        """Get color for different NBT types"""
-        colors = {
-            'B': '#FF0000',    # Bright Red for Boolean/Byte
-            'I': '#00FF00',    # Bright Green for Integer
-            'L': '#0000FF',    # Bright Blue for Long
-            'F': '#FFFF00',    # Bright Yellow for Float
-            'D': '#FF00FF',    # Magenta for Double
-            'S': '#00FFFF',    # Cyan for String
-            '📁': '#FFA500',   # Orange for Compound
-            '📄': '#800080',   # Purple for List
-            'BA': '#FF4500',   # Orange Red for Byte Array
-            'IA': '#4169E1',   # Royal Blue for Int Array
-            'LA': '#8A2BE2',   # Blue Violet for Long Array
-        }
-        color = colors.get(type_name, '#FFFFFF')  # White for unknown types
-        return color
+    def clear_current_data(self):
+        """Clear current data and reset state"""
+        self.file_ops.clear_current_data()
 
     def populate_tree(self, nbt_node, parent_item=None):
-        """Populate tree widget with NBT data using hierarchical structure"""
-        try:
-            # Clear existing data
-            self.tree.clear()
-            
-            # Use NBT reader structure if available
-            if hasattr(self, 'nbt_reader') and self.nbt_reader:
-                # Get structure from NBT reader
-                structure = self.nbt_reader.get_structure_display()
-                
-                # Create hierarchical tree structure
-                self._build_tree_hierarchy(structure, self.tree.invisibleRootItem())
-                        
-            else:
-                # Fallback to original method if no NBT reader (using nbtlib data)
-                print("⚠️ Using nbtlib data format")
-                if isinstance(nbt_node, dict):
-                    items = sorted(nbt_node.items())
-                    self._build_tree_from_dict(items, self.tree.invisibleRootItem())
-                
-        except Exception as e:
-            print(f"❌ Error populating tree: {e}")
-            import traceback
-            traceback.print_exc()
+        """Populate tree widget with NBT data"""
+        self.tree_manager.populate_tree(nbt_node, parent_item)
 
-    def _build_tree_hierarchy(self, structure, parent_item):
-        """Build hierarchical tree from NBT structure"""
-        # Group items by their parent-child relationships
-        parent_items = {}
-        root_items = []
-        
-        # First pass: create all items
-        for field_name, value, type_name, level in structure:
-            # Create tree item
-            tree_item = QTreeWidgetItem()
-            tree_item.setText(0, type_name)  # Type column
-            tree_item.setText(1, field_name)  # Name column
-            tree_item.setText(2, str(value))  # Value column
-            
-            # Type column styling is handled by EnhancedTypeDelegate
-            
-            # Store original data for editing
-            tree_item.setData(0, Qt.UserRole, (field_name, value, type_name))
-            
-            # Make value column editable for primitive types
-            if type_name not in ['📁', '📄', 'BA', 'IA', 'LA']:
-                tree_item.setFlags(tree_item.flags() | Qt.ItemIsEditable)
-            
-            # Set expandable for compound and list types
-            if type_name in ['📁', '📄']:
-                tree_item.setChildIndicatorPolicy(QTreeWidgetItem.ShowIndicator)
-                # Add a dummy child to ensure arrow shows up
-                dummy_child = QTreeWidgetItem(tree_item)
-                dummy_child.setText(0, "")
-                dummy_child.setText(1, "")
-                dummy_child.setText(2, "")
-                dummy_child.setHidden(True)
-            
-            # Store item for parent-child relationship
-            if level == 0:
-                root_items.append(tree_item)
-            else:
-                # Find parent based on field name hierarchy
-                parent_name = self._get_parent_name(field_name)
-                if parent_name not in parent_items:
-                    parent_items[parent_name] = []
-                parent_items[parent_name].append(tree_item)
-        
-        # Second pass: establish parent-child relationships
-        for item in root_items:
-            field_name = item.text(1)
-            parent_item.addChild(item)
-            
-            # Add children if this is a parent
-            if field_name in parent_items:
-                for child_item in parent_items[field_name]:
-                    item.addChild(child_item)
-    
-    def _get_parent_name(self, field_name):
-        """Extract parent name from field name"""
-        if '.' in field_name:
-            return field_name.rsplit('.', 1)[0]
-        elif '[' in field_name:
-            return field_name.split('[')[0]
-        return None
-
-    def _build_tree_from_dict(self, items, parent_item):
-        """Build tree from dictionary items (fallback method)"""
-        for key, value in items:
-            # Determine type for display
-            if isinstance(value, bool):
-                type_name = 'B'
-            elif isinstance(value, int):
-                # Check if integer 0/1 should be treated as boolean
-                if value in [0, 1]:
-                    type_name = 'B'  # Treat as boolean
-                else:
-                    type_name = 'I' if abs(value) <= 2147483647 else 'L'
-            elif isinstance(value, float):
-                type_name = 'F'
-            elif isinstance(value, str):
-                type_name = 'S'
-            elif isinstance(value, list):
-                type_name = '📄'
-            elif isinstance(value, dict):
-                type_name = '📁'
-            else:
-                type_name = 'UNKNOWN'
-            
-            # Format value for display
-            if isinstance(value, (list, dict)):
-                if isinstance(value, list):
-                    value_display = f"[{len(value)} items]"
-                else:  # dict
-                    value_display = f"{{{len(value)} items}}"
-            elif isinstance(value, bool) or (isinstance(value, int) and value in [0, 1]):
-                # Display boolean as 0/1 for easier editing
-                value_display = "1" if value else "0"
-            else:
-                value_display = str(value)
-            
-            # Create tree item
-            tree_item = QTreeWidgetItem(parent_item)
-            tree_item.setText(0, type_name)  # Type column
-            tree_item.setText(1, key)  # Name column
-            tree_item.setText(2, value_display)  # Value column
-            
-            # Type column styling is handled by EnhancedTypeDelegate
-            
-            # Store original data for editing
-            tree_item.setData(0, Qt.UserRole, (key, value, type_name))
-            
-            # Check if this item has children (entries)
-            has_children = isinstance(value, (dict, list)) and len(value) > 0
-            
-            # Make value column editable ONLY for primitive types that don't have children
-            if type_name not in ['📁', '📄'] and not has_children:
-                tree_item.setFlags(tree_item.flags() | Qt.ItemIsEditable)
-            else:
-                # Remove editable flag for compound/list types or items with children
-                tree_item.setFlags(tree_item.flags() & ~Qt.ItemIsEditable)
-                # Set visual indication that this item is not editable (slightly dimmed)
-                tree_item.setForeground(2, QColor("#888888"))
-            
-            # Set expandable for compound and list types
-            if type_name in ['📁', '📄']:
-                tree_item.setChildIndicatorPolicy(QTreeWidgetItem.ShowIndicator)
-                # Add a dummy child to ensure arrow shows up
-                dummy_child = QTreeWidgetItem(tree_item)
-                dummy_child.setText(0, "")
-                dummy_child.setText(1, "")
-                dummy_child.setText(2, "")
-                dummy_child.setHidden(True)
-
-    def on_tree_item_double_clicked(self, item, column):
-        """Handle double-click untuk inline editing"""
-        # Allow editing for value column (column 2) only if item is editable
-        if column == 2:  # Value column
-            # Check if item is editable (has Qt.ItemIsEditable flag)
-            if item.flags() & Qt.ItemIsEditable:
-                # For QTreeWidget, we need to start editing the cell
-                self.tree.editItem(item, column)
-            else:
-                # Show message that this item cannot be edited
-                print(f"⚠️ Item '{item.text(1)}' cannot be edited (compound/list type or has children)")
-
-    def on_item_changed(self, item, column):
-        """Handle perubahan value dengan dialog konfirmasi"""
-        # Skip if this is a programmatic change
-        if self.is_programmatic_change:
-            return
-        
-        # Skip if we're currently loading a file or changing worlds
-        if not hasattr(self, 'nbt_data') or self.nbt_data is None:
-            return
-            
-        # Check if this is the value column (column 2)
-        if column == 2:  # Only for the value column
-            try:
-                # Get the original data from the item
-                original_data = item.data(0, Qt.UserRole)
-                if original_data:
-                    field_name, original_value, type_name = original_data
-                    
-                    # Get the new value directly from the item
-                    new_text = item.text(2)
-                    
-                    # Check if value actually changed
-                    if str(original_value) == new_text:
-                        print(f"ℹ️ Field {field_name} unchanged: {original_value}")
-                        return
-                    
-                    # Initialize NBTEditor if not already done
-                    if self.nbt_editor is None:
-                        self.nbt_editor = NBTFileEditor(self.nbt_file)
-                        self.nbt_editor.load_file()
-                    
-                    # Convert new_text to appropriate type based on original_value
-                    new_value = self._convert_value_to_type(new_text, original_value, type_name)
-                    
-                    # Update the field using NBTEditor
-                    if self.nbt_editor.update_field(field_name, new_value):
-                        # Update the data structure for display
-                        if field_name in self.nbt_data:
-                            self.nbt_data[field_name] = new_value
-                        
-                        # Update window title to show modification
-                        self.setWindowTitle("Bedrock NBT/DAT Editor - No Admin Mode - *Modified")
-                        
-                        print(f"✅ Updated {field_name}: {original_value} → {new_value}")
-                    else:
-                        # Revert the change if update failed
-                        item.setText(2, str(original_value))
-                        print(f"❌ Failed to update {field_name}, reverted to original value")
-                            
-            except Exception as e:
-                print(f"❌ Error updating value: {e}")
-    
-    def _convert_value_to_type(self, text_value: str, original_value: Any, type_name: str) -> Any:
-        """Convert text value to appropriate type based on original value"""
-        try:
-            # If original value is a number, try to convert text to number
-            if isinstance(original_value, (int, float)):
-                if isinstance(original_value, int):
-                    # Special handling for integer 0/1 as boolean
-                    if original_value in [0, 1] and type_name == 'B':
-                        text_lower = text_value.lower()
-                        if text_lower in ['true', '1', 'yes', 'on']:
-                            return 1
-                        elif text_lower in ['false', '0', 'no', 'off']:
-                            return 0
-                        else:
-                            return original_value  # Keep original if conversion fails
-                    else:
-                        return int(text_value)
-                else:
-                    return float(text_value)
-            
-            # If original value is boolean
-            elif isinstance(original_value, bool):
-                text_lower = text_value.lower()
-                if text_lower in ['true', '1', 'yes', 'on']:
-                    return True
-                elif text_lower in ['false', '0', 'no', 'off']:
-                    return False
-                else:
-                    return original_value  # Keep original if conversion fails
-            
-            # For strings and other types, return as string
-            else:
-                return text_value
-                
-        except (ValueError, TypeError):
-            # If conversion fails, return original value
-            return original_value
-    
     def perform_live_search(self):
         """Delegate to search utils"""
         self.search_utils.perform_live_search()
 
-
-
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    window = NBTEditorNoAdmin()
+    window = NBTEditorNoAdminMain()
     window.show()
     sys.exit(app.exec_())
