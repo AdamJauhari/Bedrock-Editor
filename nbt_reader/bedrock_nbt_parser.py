@@ -40,8 +40,8 @@ class BedrockNBTParser:
         TAG_DOUBLE: 'D',
         TAG_BYTE_ARRAY: 'BA',
         TAG_STRING: 'S',
-        TAG_LIST: 'LIST',
-        TAG_COMPOUND: 'COMP',
+        TAG_LIST: '📄',
+        TAG_COMPOUND: '📁',
         TAG_INT_ARRAY: 'IA',
         TAG_LONG_ARRAY: 'LA'
     }

@@ -3,6 +3,10 @@ Styling Components
 Contains all CSS styling for the GUI components
 """
 
+from PyQt5.QtWidgets import QStyledItemDelegate, QLabel
+from PyQt5.QtGui import QPainter, QColor, QFont, QPixmap, QLinearGradient
+from PyQt5.QtCore import Qt, QRect
+
 class StylingComponents:
     """CSS styling for GUI components"""
     
@@ -146,9 +150,17 @@ class StylingComponents:
             }
             QTreeWidget::item {
                 padding: 6px 8px;
-                margin: 1px 0px;
-                border-radius: 4px;
+                margin: 2px 0px;
+                border-radius: 6px;
                 background-color: transparent;
+            }
+            QTreeWidget::item:hover {
+                background-color: #2d3139;
+                border: 1px solid #0078d4;
+            }
+            QTreeWidget::item:selected {
+                background-color: #0078d4;
+                color: #ffffff;
             }
             QTreeWidget::item:hover {
                 background-color: #2d3139;
@@ -359,7 +371,7 @@ class StylingComponents:
                     border: 1px solid #0099cc;
                 }}
             """,
-            'COMP': f"""
+            '📁': f"""
                 {base_style}
                 QLabel {{
                     background-color: #ff9500;
@@ -367,7 +379,7 @@ class StylingComponents:
                     border: 1px solid #e6850e;
                 }}
             """,
-            'LIST': f"""
+            '📄': f"""
                 {base_style}
                 QLabel {{
                     background-color: #800080;
@@ -420,10 +432,174 @@ class StylingComponents:
             'F': '#ffaa00',    # Bright Orange for Float
             'D': '#ff00ff',    # Magenta for Double
             'S': '#00bfff',    # Bright Blue for String
-            'COMP': '#ff9500', # Orange for Compound
-            'LIST': '#800080', # Purple for List
+            '📁': '#ff9500',   # Orange for Compound
+            '📄': '#800080',   # Purple for List
             'BA': '#ff4500',   # Orange Red for Byte Array
             'IA': '#4169e1',   # Royal Blue for Int Array
             'LA': '#8a2be2',   # Blue Violet for Long Array
         }
         return colors.get(type_name, '#666666')  # Gray for unknown types
+
+    @staticmethod
+    def get_enhanced_tree_style():
+        """Get enhanced tree widget styling with better type column appearance"""
+        return """
+            QTreeWidget {
+                background-color: #23272e;
+                color: #e1e1e1;
+                font-size: 16px;
+                font-family: 'Segoe UI', Arial, sans-serif;
+                border: 1px solid #404040;
+                border-radius: 8px;
+                padding: 8px;
+                selection-background-color: #0078d4;
+                outline: none;
+                alternate-background-color: #1e2328;
+            }
+            QTreeWidget::item {
+                padding: 8px 12px;
+                margin: 3px 0px;
+                border-radius: 8px;
+                background-color: transparent;
+            }
+            QTreeWidget::item:hover {
+                background-color: #2d3139;
+                border: 1px solid #0078d4;
+            }
+            QTreeWidget::item:selected {
+                background-color: #0078d4;
+                color: #ffffff;
+            }
+            QHeaderView::section {
+                background-color: #1e2328;
+                color: #00bfff;
+                font-weight: bold;
+                font-size: 15px;
+                padding: 12px 8px;
+                border: none;
+                border-right: 1px solid #404040;
+                border-bottom: 2px solid #00bfff;
+            }
+            QHeaderView::section:hover {
+                background-color: #2d3139;
+            }
+        """
+
+class EnhancedTypeDelegate(QStyledItemDelegate):
+    """Custom delegate for enhanced type display with attractive badges and branch indicators"""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+    
+    def paint(self, painter, option, index):
+        if index.column() == 0:  # Only for type column
+            self.paint_type_badge(painter, option, index)
+            # Also paint branch indicators for items with children
+            self.paint_branch_indicator(painter, option, index)
+        else:
+            super().paint(painter, option, index)
+    
+    def paint_type_badge(self, painter, option, index):
+        """Paint type indicator as an attractive badge"""
+        painter.save()
+        
+        # Get the type text
+        type_text = index.data()
+        if not type_text:
+            painter.restore()
+            return
+        
+        # Calculate badge dimensions
+        rect = option.rect
+        badge_width = min(rect.width() - 8, 40)  # Fixed width for consistency
+        badge_height = min(rect.height() - 4, 28)  # Fixed height for consistency
+        
+        # Center the badge in the cell
+        badge_x = rect.x() + (rect.width() - badge_width) // 2
+        badge_y = rect.y() + (rect.height() - badge_height) // 2
+        badge_rect = QRect(badge_x, badge_y, badge_width, badge_height)
+        
+        # Draw background with gradient (but not for compound and list types)
+        if type_text not in ['📁', '📄']:
+            self.draw_badge_background(painter, badge_rect, type_text)
+            # Draw text with white color for types with background
+            painter.setPen(QColor("white"))
+        else:
+            # For compound and list types, draw text with colored text (no background)
+            if type_text == '📁':
+                painter.setPen(QColor("#ff9500"))  # Orange for compound
+            else:  # 📄
+                painter.setPen(QColor("#800080"))  # Purple for list
+        
+        # Set font
+        font = QFont("Segoe UI", 11, QFont.Bold)
+        if type_text in ['📁', '📄']:
+            font.setPointSize(14)  # Larger font for emoji types
+        painter.setFont(font)
+        
+        # Center text in badge
+        text_rect = badge_rect
+        painter.drawText(text_rect, Qt.AlignCenter, type_text)
+        
+        painter.restore()
+    
+    def paint_branch_indicator(self, painter, option, index):
+        """Paint branch indicators (arrows) for expandable items"""
+        tree_widget = self.parent()
+        if tree_widget:
+            item = tree_widget.itemFromIndex(index)
+            if item and item.childCount() > 0:
+                # Draw arrow symbol
+                painter.save()
+                painter.setPen(QColor("#00bfff"))
+                font = QFont("Segoe UI", 12, QFont.Bold)
+                painter.setFont(font)
+                
+                # Position for arrow - move to the left to avoid collision with type
+                rect = option.rect
+                x = rect.x() - 20  # Move further left to avoid type column
+                y = rect.y() + rect.height() // 2 + 4
+                
+                # Draw arrow based on expanded state
+                if item.isExpanded():
+                    painter.drawText(x, y, "▼")
+                else:
+                    painter.drawText(x, y, "▶")
+                
+                painter.restore()
+    
+    def draw_badge_background(self, painter, rect, type_text):
+        """Draw attractive gradient background for badge"""
+        # Define gradient colors based on type
+        gradient_colors = {
+            'B': ('#ff6b6b', '#ff4444'),      # Red gradient
+            'I': ('#51cf66', '#00d084'),      # Green gradient
+            'L': ('#74c0fc', '#4169e1'),      # Blue gradient
+            'F': ('#ffd43b', '#ffaa00'),      # Yellow gradient
+            'D': ('#f783ac', '#ff00ff'),      # Magenta gradient
+            'S': ('#4dabf7', '#00bfff'),      # Cyan gradient
+            '📁': ('#ffb84d', '#ff9500'),     # Orange gradient
+            '📄': ('#cc99ff', '#800080'),     # Purple gradient
+            'BA': ('#ff8a65', '#ff4500'),     # Orange-red gradient
+            'IA': ('#74c0fc', '#4169e1'),     # Blue gradient
+            'LA': ('#b197fc', '#8a2be2'),     # Purple gradient
+        }
+        
+        start_color, end_color = gradient_colors.get(type_text, ('#adb5bd', '#666666'))
+        
+        # Create gradient
+        gradient = QLinearGradient(rect.x(), rect.y(), rect.x(), rect.y() + rect.height())
+        gradient.setColorAt(0, QColor(start_color))
+        gradient.setColorAt(1, QColor(end_color))
+        
+        # Draw rounded rectangle with gradient
+        painter.setBrush(gradient)
+        painter.setPen(Qt.NoPen)
+        painter.drawRoundedRect(rect, 8, 8)
+        
+        # Add subtle border
+        border_color = QColor(end_color)
+        border_color.setAlpha(150)
+        painter.setPen(border_color)
+        painter.setBrush(Qt.NoBrush)
+        painter.drawRoundedRect(rect, 8, 8)

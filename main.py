@@ -16,7 +16,7 @@ from package_manager import *
 from minecraft_paths import MINECRAFT_WORLDS_PATH
 from nbt_reader.bedrock_nbt_parser import BedrockNBTParser as NBTReader
 from search_utils import SearchUtils
-from gui_components import GUIComponents
+from gui_components import GUIComponents, EnhancedTypeDelegate
 
 # Additional imports needed for the main app
 from PyQt5.QtWidgets import (
@@ -215,10 +215,10 @@ class NBTEditor(QMainWindow):
         self.tree = QTreeWidget()
         self.tree.setHeaderLabels(["Type", "Nama", "Value"])
         self.tree.setAlternatingRowColors(True)
-        self.tree.setStyleSheet(GUIComponents.get_tree_widget_style())
+        self.tree.setStyleSheet(GUIComponents.get_enhanced_tree_style())
         
         # Set column widths with stretch factors for responsive layout
-        self.tree.setColumnWidth(0, 80)   # Type column (fixed width)
+        self.tree.setColumnWidth(0, 100)  # Type column (fixed width) - wider for enhanced display
         self.tree.setColumnWidth(1, 300)  # Nama column (initial width)
         self.tree.setColumnWidth(2, 400)  # Value column (initial width)
         
@@ -237,8 +237,8 @@ class NBTEditor(QMainWindow):
         # Setup custom branch text
         self.setup_custom_branch_text()
         
-        # Set custom delegate for branch indicators
-        self.tree.setItemDelegateForColumn(0, CustomBranchDelegate(self.tree))
+        # Set custom delegate for enhanced type display
+        self.tree.setItemDelegateForColumn(0, EnhancedTypeDelegate(self.tree))
         
         center_layout.addWidget(self.tree)
         main_layout.addLayout(center_layout, 4)  # 4 = most space for table
@@ -600,8 +600,8 @@ class NBTEditor(QMainWindow):
             'F': '#FFFF00',    # Bright Yellow for Float
             'D': '#FF00FF',    # Magenta for Double
             'S': '#00FFFF',    # Cyan for String
-            'COMP': '#FFA500', # Orange for Compound
-            'LIST': '#800080', # Purple for List
+            '📁': '#FFA500',   # Orange for Compound
+            '📄': '#800080',   # Purple for List
             'BA': '#FF4500',   # Orange Red for Byte Array
             'IA': '#4169E1',   # Royal Blue for Int Array
             'LA': '#8A2BE2',   # Blue Violet for Long Array
@@ -658,9 +658,7 @@ class NBTEditor(QMainWindow):
             tree_item.setText(1, field_name)  # Name column
             tree_item.setText(2, str(value))  # Value column
             
-            # Apply color to type column
-            type_color = self.get_type_color(type_name)
-            tree_item.setForeground(0, QColor(type_color))
+            # Type column styling is handled by EnhancedTypeDelegate
             
             # Store original data for editing
             tree_item.setData(0, Qt.UserRole, (field_name, value, type_name))
@@ -672,16 +670,16 @@ class NBTEditor(QMainWindow):
                              for child_field, _, _, child_level in structure if child_level > level)
             
             # Make value column editable ONLY for primitive types that don't have children
-            if type_name not in ['COMP', 'LIST', 'BA', 'IA', 'LA'] and not has_children:
+            if type_name not in ['📁', '📄', 'BA', 'IA', 'LA'] and not has_children:
                 tree_item.setFlags(tree_item.flags() | Qt.ItemIsEditable)
             else:
                 # Remove editable flag for compound/list types or items with children
                 tree_item.setFlags(tree_item.flags() & ~Qt.ItemIsEditable)
-                # Set visual indication that this item is not editable (slightly dimmed)
-                tree_item.setForeground(2, QColor("#888888"))
+                            # Set visual indication that this item is not editable (slightly dimmed)
+            tree_item.setForeground(2, QColor("#888888"))
             
             # Set expandable for compound and list types or items with children
-            if type_name in ['COMP', 'LIST'] or has_children:
+            if type_name in ['📁', '📄'] or has_children:
                 tree_item.setChildIndicatorPolicy(QTreeWidgetItem.ShowIndicator)
                 # Add a dummy child to ensure arrow shows up
                 dummy_child = QTreeWidgetItem(tree_item)
@@ -714,9 +712,9 @@ class NBTEditor(QMainWindow):
             elif isinstance(value, str):
                 type_name = 'S'
             elif isinstance(value, list):
-                type_name = 'LIST'
+                type_name = '📄'
             elif isinstance(value, dict):
-                type_name = 'COMP'
+                type_name = '📁'
             else:
                 type_name = 'UNKNOWN'
             
@@ -735,9 +733,7 @@ class NBTEditor(QMainWindow):
             tree_item.setText(1, key)  # Name column
             tree_item.setText(2, value_display)  # Value column
             
-            # Apply color to type column
-            type_color = self.get_type_color(type_name)
-            tree_item.setForeground(0, QColor(type_color))
+            # Type column styling is handled by EnhancedTypeDelegate
             
             # Store original data for editing
             tree_item.setData(0, Qt.UserRole, (key, value, type_name))
@@ -746,14 +742,14 @@ class NBTEditor(QMainWindow):
             has_children = isinstance(value, (dict, list)) and len(value) > 0
             
             # Make value column editable ONLY for primitive types that don't have children
-            if type_name not in ['COMP', 'LIST'] and not has_children:
+            if type_name not in ['📁', '📄'] and not has_children:
                 tree_item.setFlags(tree_item.flags() | Qt.ItemIsEditable)
             else:
                 # Remove editable flag for compound/list types or items with children
                 tree_item.setFlags(tree_item.flags() & ~Qt.ItemIsEditable)
             
             # Set expandable for compound and list types or items with children
-            if type_name in ['COMP', 'LIST'] or has_children:
+            if type_name in ['📁', '📄'] or has_children:
                 tree_item.setChildIndicatorPolicy(QTreeWidgetItem.ShowIndicator)
                 # Add a dummy child to ensure arrow shows up
                 dummy_child = QTreeWidgetItem(tree_item)

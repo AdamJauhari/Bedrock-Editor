@@ -4,7 +4,7 @@ Contains modular GUI components for the Bedrock NBT Editor
 """
 
 from .world_list_components import WorldListComponents
-from .styling_components import StylingComponents
+from .styling_components import StylingComponents, EnhancedTypeDelegate
 from .message_box_components import MessageBoxComponents
 from .button_components import ButtonComponents
 
@@ -25,6 +25,7 @@ class GUIComponents:
     get_search_input_style = StylingComponents.get_search_input_style
     get_clear_search_button_style = StylingComponents.get_clear_search_button_style
     get_tree_widget_style = StylingComponents.get_tree_widget_style
+    get_enhanced_tree_style = StylingComponents.get_enhanced_tree_style
     get_main_window_style = StylingComponents.get_main_window_style
     get_status_bar_style = StylingComponents.get_status_bar_style
     get_scroll_bar_style = StylingComponents.get_scroll_bar_style
@@ -48,5 +49,6 @@ __all__ = [
     'WorldListComponents', 
     'StylingComponents',
     'MessageBoxComponents',
-    'ButtonComponents'
+    'ButtonComponents',
+    'EnhancedTypeDelegate'
 ]

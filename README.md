@@ -26,6 +26,19 @@ A powerful GUI application for editing Minecraft Bedrock Edition NBT/DAT files w
 - **Better UX**: More intuitive and visually appealing tree navigation
 - **Modern Typography**: Uses Segoe UI font with bold weight for better readability
 
+### 📄📁 Visual Type Indicators
+- **Emoji Type Icons**: List types display as 📄 and Compound types display as 📁
+- **Intuitive Visual Cues**: Easy to distinguish between different NBT data structures
+- **Consistent Color Coding**: Each type maintains its distinct color scheme
+- **Enhanced Readability**: Visual icons make it easier to scan and understand data structure
+
+### 🎨 Enhanced Type Display
+- **Attractive Badge Design**: Type indicators now display as colorful badges with rounded corners
+- **Icon Integration**: Each type includes a relevant emoji icon for better visual recognition
+- **Gradient Backgrounds**: Beautiful gradient backgrounds for each type with subtle shadows
+- **Professional Appearance**: Modern, polished look that enhances the overall user experience
+- **Improved Spacing**: Better column sizing and padding for optimal readability
+
 ## Project Structure
 
 The application has been modularized for better maintainability:
@@ -131,7 +144,7 @@ The application provides detailed console output for debugging:
 
 ## License
 
-This project is open source and available under the MIT License.
+This project is open source and available
 
 ## Author
 
