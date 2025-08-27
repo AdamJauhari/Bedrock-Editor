@@ -5,7 +5,7 @@ Contains all CSS styling for the GUI components
 
 from PyQt5.QtWidgets import QStyledItemDelegate, QLabel
 from PyQt5.QtGui import QPainter, QColor, QFont, QPixmap, QLinearGradient
-from PyQt5.QtCore import Qt, QRect
+from PyQt5.QtCore import Qt, QRect, QEvent
 
 class StylingComponents:
     """CSS styling for GUI components"""
@@ -224,6 +224,43 @@ class StylingComponents:
                 color: #ffffff !important;
                 font-weight: bold;
             }
+            QTreeWidget QLineEdit:hover {
+                background-color: #2d3139 !important;
+                color: #ffffff !important;
+                border: 3px solid #ff9500 !important;
+            }
+            QTreeWidget QLineEdit:active {
+                background-color: #2d3139 !important;
+                color: #ffffff !important;
+            }
+            QTreeWidget QLineEdit:enabled {
+                background-color: #2d3139 !important;
+                color: #ffffff !important;
+            }
+            QTreeWidget QLineEdit:disabled {
+                background-color: #2d3139 !important;
+                color: #ffffff !important;
+            }
+            /* Additional styling for text editing */
+            QTreeWidget::item:selected {
+                background-color: #0078d4;
+                color: #ffffff;
+            }
+            QTreeWidget::item:selected:active {
+                background-color: #0078d4;
+                color: #ffffff;
+            }
+            QTreeWidget::item:selected:!active {
+                background-color: #0078d4;
+                color: #ffffff;
+            }
+            /* Ensure text is visible during editing */
+            QTreeWidget QAbstractItemView {
+                background-color: #23272e;
+                color: #ffffff;
+                selection-background-color: #0078d4;
+                selection-color: #ffffff;
+            }
             QHeaderView::section {
                 background-color: #1e2328;
                 color: #00bfff;
@@ -422,24 +459,8 @@ class StylingComponents:
             }}
         """)
     
-    @staticmethod
-    def get_type_color_enhanced(type_name):
-        """Get enhanced color scheme for type indicators"""
-        colors = {
-            'B': '#ff4444',    # Bright Red for Boolean/Byte
-            'I': '#00d084',    # Bright Green for Integer
-            'L': '#4169e1',    # Royal Blue for Long
-            'F': '#ffaa00',    # Bright Orange for Float
-            'D': '#ff00ff',    # Magenta for Double
-            'S': '#00bfff',    # Bright Blue for String
-            '📁': '#ff9500',   # Orange for Compound
-            '📄': '#800080',   # Purple for List
-            'BA': '#ff4500',   # Orange Red for Byte Array
-            'IA': '#4169e1',   # Royal Blue for Int Array
-            'LA': '#8a2be2',   # Blue Violet for Long Array
-        }
-        return colors.get(type_name, '#666666')  # Gray for unknown types
 
+    
     @staticmethod
     def get_enhanced_tree_style():
         """Get enhanced tree widget styling with better type column appearance"""
@@ -470,6 +491,50 @@ class StylingComponents:
                 background-color: #0078d4;
                 color: #ffffff;
             }
+            QTreeWidget::item:selected:active {
+                background-color: #0078d4;
+                color: #ffffff;
+            }
+            QTreeWidget::item:selected:!active {
+                background-color: #0078d4;
+                color: #ffffff;
+            }
+            QTreeWidget QLineEdit {
+                background-color: #2d3139 !important;
+                color: #ffffff !important;
+                font-size: 16px;
+                font-weight: bold;
+                font-family: 'Segoe UI', Arial, sans-serif;
+                border: 3px solid #ff6b35 !important;
+                border-radius: 6px;
+                padding: 6px 12px;
+                selection-background-color: #4da6ff !important;
+                selection-color: #ffffff !important;
+                min-height: 20px;
+            }
+            QTreeWidget QLineEdit:focus {
+                border: 4px solid #ff9500 !important;
+                background-color: #2d3139 !important;
+                color: #ffffff !important;
+                font-weight: bold;
+            }
+            QTreeWidget QLineEdit:hover {
+                background-color: #2d3139 !important;
+                color: #ffffff !important;
+                border: 3px solid #ff9500 !important;
+            }
+            QTreeWidget QLineEdit:active {
+                background-color: #2d3139 !important;
+                color: #ffffff !important;
+            }
+            QTreeWidget QLineEdit:enabled {
+                background-color: #2d3139 !important;
+                color: #ffffff !important;
+            }
+            QTreeWidget QLineEdit:disabled {
+                background-color: #2d3139 !important;
+                color: #ffffff !important;
+            }
             QHeaderView::section {
                 background-color: #1e2328;
                 color: #00bfff;
@@ -498,6 +563,32 @@ class EnhancedTypeDelegate(QStyledItemDelegate):
             self.paint_branch_indicator(painter, option, index)
         else:
             super().paint(painter, option, index)
+    
+    def editorEvent(self, event, model, option, index):
+        """Handle mouse events for expand/collapse functionality"""
+        if index.column() == 0 and event.type() == event.MouseButtonPress:
+            tree_widget = self.parent()
+            if tree_widget:
+                item = tree_widget.itemFromIndex(index)
+                if item and item.childCount() > 0:
+                    # Check if click is in the arrow area
+                    rect = option.rect
+                    arrow_x = rect.x() + 8
+                    arrow_y = rect.y() + rect.height() // 2 - 8
+                    arrow_width = 16
+                    arrow_height = 16
+                    
+                    # Check if click is within arrow bounds
+                    if (arrow_x <= event.pos().x() <= arrow_x + arrow_width and 
+                        arrow_y <= event.pos().y() <= arrow_y + arrow_height):
+                        # Toggle expand/collapse
+                        if item.isExpanded():
+                            item.setExpanded(False)
+                        else:
+                            item.setExpanded(True)
+                        return True  # Event handled
+        
+        return super().editorEvent(event, model, option, index)
     
     def paint_type_badge(self, painter, option, index):
         """Paint type indicator as an attractive badge"""
@@ -555,9 +646,9 @@ class EnhancedTypeDelegate(QStyledItemDelegate):
                 font = QFont("Segoe UI", 12, QFont.Bold)
                 painter.setFont(font)
                 
-                # Position for arrow - move to the left to avoid collision with type
+                # Position for arrow - inside the type column but to the left of the type badge
                 rect = option.rect
-                x = rect.x() - 20  # Move further left to avoid type column
+                x = rect.x() + 8  # Position inside the type column
                 y = rect.y() + rect.height() // 2 + 4
                 
                 # Draw arrow based on expanded state

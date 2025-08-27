@@ -9,7 +9,7 @@ import sys
 import os
 import platform
 from typing import Any, Dict, List, Union, Tuple, Optional
-import json
+
 
 class RawNBTReader:
     """Class untuk membaca file NBT Minecraft Bedrock secara mentah"""
@@ -131,7 +131,9 @@ class RawNBTReader:
     def read_tag_payload(self, tag_type: int) -> Tuple[Any, int]:
         """Membaca payload berdasarkan tag type, return (value, tag_type)"""
         if tag_type == self.TAG_BYTE:
-            return (self.read_byte(), tag_type)
+            byte_value = self.read_byte()
+            # Keep as integer 0/1 for easier editing, don't convert to bool
+            return (byte_value, tag_type)
         elif tag_type == self.TAG_SHORT:
             return (self.read_short(), tag_type)
         elif tag_type == self.TAG_INT:

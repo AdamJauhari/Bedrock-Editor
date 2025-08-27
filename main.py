@@ -9,7 +9,8 @@ import os
 import shutil
 import ctypes
 import subprocess
-import json
+from typing import Any
+
 
 # Import our separated modules
 from package_manager import *
@@ -17,6 +18,7 @@ from minecraft_paths import MINECRAFT_WORLDS_PATH
 from nbt_reader.bedrock_nbt_parser import BedrockNBTParser as NBTReader
 from search_utils import SearchUtils
 from gui_components import GUIComponents, EnhancedTypeDelegate
+from nbt_editor import NBTEditor as NBTFileEditor
 
 # Additional imports needed for the main app
 from PyQt5.QtWidgets import (
@@ -35,37 +37,7 @@ def is_admin():
     except:
         return False
 
-class CustomBranchDelegate(QStyledItemDelegate):
-    """Custom delegate to draw arrow symbols for tree branches"""
-    
-    def paint(self, painter, option, index):
-        # Call parent paint method first
-        super().paint(painter, option, index)
-        
-        # Only paint for the first column (type column)
-        if index.column() == 0:
-            tree_widget = self.parent()
-            if tree_widget:
-                item = tree_widget.itemFromIndex(index)
-                if item and item.childCount() > 0:
-                    # Draw arrow symbol
-                    painter.save()
-                    painter.setPen(QColor("#00bfff"))
-                    font = QFont("Segoe UI", 12, QFont.Bold)
-                    painter.setFont(font)
-                    
-                    # Position for arrow - move to the left to avoid collision with type
-                    rect = option.rect
-                    x = rect.x() - 20  # Move further left to avoid type column
-                    y = rect.y() + rect.height() // 2 + 4
-                    
-                    # Draw arrow based on expanded state
-                    if item.isExpanded():
-                        painter.drawText(x, y, "▼")
-                    else:
-                        painter.drawText(x, y, "▶")
-                    
-                    painter.restore()
+
 
 def run_as_admin():
     """Restart the application with administrator privileges"""
@@ -231,12 +203,10 @@ class NBTEditor(QMainWindow):
         # Set tree properties
         self.tree.setSelectionBehavior(QTreeWidget.SelectRows)
         self.tree.setEditTriggers(QTreeWidget.NoEditTriggers)
-        self.tree.setRootIsDecorated(True)  # Show branch indicators
+        self.tree.setRootIsDecorated(False)  # Disable default branch indicators (using custom ones)
         self.tree.setItemsExpandable(True)  # Allow items to be expanded
         
         # Setup custom branch text
-        self.setup_custom_branch_text()
-        
         # Set custom delegate for enhanced type display
         self.tree.setItemDelegateForColumn(0, EnhancedTypeDelegate(self.tree))
         
@@ -257,10 +227,7 @@ class NBTEditor(QMainWindow):
         save_button.setStyleSheet(GUIComponents.get_button_style())
         right_panel.addWidget(save_button)
         
-        export_button = QPushButton("Export JSON")
-        export_button.clicked.connect(self.export_to_json)
-        export_button.setStyleSheet(GUIComponents.get_button_style())
-        right_panel.addWidget(export_button)
+
         
         right_panel.addStretch()
         main_layout.addLayout(right_panel, 1)  # 1 = minimum space for buttons
@@ -284,6 +251,7 @@ class NBTEditor(QMainWindow):
             self.nbt_data = None
             self.nbt_file = None
             self.nbt_reader = None
+            self.nbt_editor = None  # NBT file editor instance
             
             # Reset window title
             self.setWindowTitle("Bedrock NBT/DAT Editor (Generic Parser)")
@@ -506,31 +474,45 @@ class NBTEditor(QMainWindow):
                 self.is_programmatic_change = False
 
     def save_file(self):
-        """Save current data to file"""
+        """Save current data to file using NBTEditor"""
         if self.nbt_file and self.nbt_data:
             try:
                 print(f"💾 Saving file: {self.nbt_file}")
                 
-                # Create a backup of the original file
-                backup_file = self.nbt_file + ".backup"
-                if os.path.exists(self.nbt_file):
-                    import shutil
-                    shutil.copy2(self.nbt_file, backup_file)
-                    print(f"✅ Backup created: {backup_file}")
+                # Initialize NBTEditor if not already done
+                if self.nbt_editor is None:
+                    self.nbt_editor = NBTFileEditor(self.nbt_file)
+                    self.nbt_editor.load_file()
                 
-                # Save as JSON for now (simplified approach)
-                json_file = self.nbt_file.replace('.dat', '.json')
-                with open(json_file, 'w', encoding='utf-8') as f:
-                    json.dump(self.nbt_data, f, indent=2, ensure_ascii=False)
-                print(f"✅ Saved as JSON: {json_file}")
+                # Check if there are any modifications to save
+                if not self.nbt_editor.has_modifications():
+                    msg = QMessageBox()
+                    msg.setIcon(QMessageBox.Information)
+                    msg.setWindowTitle("Info")
+                    msg.setText("Tidak ada perubahan yang perlu disimpan.")
+                    msg.setStyleSheet(GUIComponents.get_message_box_style())
+                    msg.exec_()
+                    return
                 
-                # Success message
-                msg = QMessageBox()
-                msg.setIcon(QMessageBox.Information)
-                msg.setWindowTitle("Sukses")
-                msg.setText(f"Data disimpan sebagai JSON:\n{json_file}")
-                msg.setStyleSheet(GUIComponents.get_message_box_style())
-                msg.exec_()
+                # Get modified fields
+                modified_fields = self.nbt_editor.get_modified_fields()
+                
+                # Save the file
+                if self.nbt_editor.save_file(backup=True):
+                    # Success message
+                    msg = QMessageBox()
+                    msg.setIcon(QMessageBox.Information)
+                    msg.setWindowTitle("Sukses")
+                    msg.setText(f"File berhasil disimpan!\n\nPerubahan yang disimpan:\n" + 
+                              "\n".join([f"• {field}" for field in modified_fields[:10]]) + 
+                              (f"\n...dan {len(modified_fields) - 10} field lainnya" if len(modified_fields) > 10 else ""))
+                    msg.setStyleSheet(GUIComponents.get_message_box_style())
+                    msg.exec_()
+                    
+                    # Update window title to remove modification indicator
+                    self.setWindowTitle("Bedrock NBT/DAT Editor (Generic Parser)")
+                else:
+                    raise Exception("Failed to save file")
                     
             except Exception as e:
                 print(f"❌ Save error: {e}")
@@ -553,43 +535,7 @@ class NBTEditor(QMainWindow):
 
 
 
-    def setup_custom_branch_text(self):
-        """Setup custom branch indicators with arrow symbols"""
-        # Apply QSS for custom branch indicators
-        branch_style = """
-            QTreeWidget::branch:has-children:!has-siblings:closed,
-            QTreeWidget::branch:closed:has-children:has-siblings {
-                image: none;
-                border-image: none;
-                background-color: transparent;
-                color: #00bfff;
-                font-size: 18px;
-                font-weight: bold;
-                padding-left: 0px;
-                text-align: center;
-                border: none;
-                border-radius: 0px;
-                margin-left: -5px;
-            }
-            QTreeWidget::branch:open:has-children:!has-siblings,
-            QTreeWidget::branch:open:has-children:has-siblings {
-                image: none;
-                border-image: none;
-                background-color: transparent;
-                color: #00bfff;
-                font-size: 18px;
-                font-weight: bold;
-                padding-left: 0px;
-                text-align: center;
-                border: none;
-                border-radius: 0px;
-                margin-left: -5px;
-            }
-        """
-        
-        # Apply the style to the tree widget
-        current_style = self.tree.styleSheet()
-        self.tree.setStyleSheet(current_style + branch_style)
+
 
     def get_type_color(self, type_name):
         """Get color for different NBT types"""
@@ -654,14 +600,19 @@ class NBTEditor(QMainWindow):
                     # Fallback: add to root
                     tree_item = QTreeWidgetItem(parent_item)
             
+            # Handle NBTValue objects for display
+            display_value = value
+            if hasattr(value, 'value'):  # NBTValue object
+                display_value = value.value
+            
             tree_item.setText(0, type_name)  # Type column
             tree_item.setText(1, field_name)  # Name column
-            tree_item.setText(2, str(value))  # Value column
+            tree_item.setText(2, str(display_value))  # Value column
             
             # Type column styling is handled by EnhancedTypeDelegate
             
             # Store original data for editing
-            tree_item.setData(0, Qt.UserRole, (field_name, value, type_name))
+            tree_item.setData(0, Qt.UserRole, (field_name, display_value, type_name))
             
             # Check if this item has children (entries) and add arrow indicator
             # Check if there are any child items for this field
@@ -706,7 +657,11 @@ class NBTEditor(QMainWindow):
             if isinstance(value, bool):
                 type_name = 'B'
             elif isinstance(value, int):
-                type_name = 'I' if abs(value) <= 2147483647 else 'L'
+                # Check if integer 0/1 should be treated as boolean
+                if value in [0, 1]:
+                    type_name = 'B'  # Treat as boolean
+                else:
+                    type_name = 'I' if abs(value) <= 2147483647 else 'L'
             elif isinstance(value, float):
                 type_name = 'F'
             elif isinstance(value, str):
@@ -724,6 +679,9 @@ class NBTEditor(QMainWindow):
                     value_display = f"[{len(value)} items]"
                 else:  # dict
                     value_display = f"{{{len(value)} items}}"
+            elif isinstance(value, bool) or (isinstance(value, int) and value in [0, 1]):
+                # Display boolean as 0/1 for easier editing
+                value_display = "1" if value else "0"
             else:
                 value_display = str(value)
             
@@ -792,56 +750,81 @@ class NBTEditor(QMainWindow):
                     
                     # Get the new value directly from the item
                     new_text = item.text(2)
-                    try:
-                        # Parse based on type
-                        if type_name == 'B':  # boolean
-                            if new_text.lower() in ['true', '1']:
-                                new_value = True
-                            elif new_text.lower() in ['false', '0']:
-                                new_value = False
-                            else:
-                                raise ValueError(f"Invalid boolean value: {new_text}")
-                        elif type_name in ['I', 'L']:  # integer/long
-                            new_value = int(new_text)
-                        elif type_name in ['F', 'D']:  # float/double
-                            new_value = float(new_text)
-                        elif type_name == 'S':  # string
-                            new_value = new_text
-                        else:
-                            new_value = new_text
-                        
-                        # Update the data structure
+                    
+                    # Check if value actually changed
+                    if str(original_value) == new_text:
+                        print(f"ℹ️ Field {field_name} unchanged: {original_value}")
+                        return
+                    
+                    # Initialize NBTEditor if not already done
+                    if self.nbt_editor is None:
+                        self.nbt_editor = NBTFileEditor(self.nbt_file)
+                        self.nbt_editor.load_file()
+                    
+                    # Convert new_text to appropriate type based on original_value
+                    new_value = self._convert_value_to_type(new_text, original_value, type_name)
+                    
+                    # Update the field using NBTEditor
+                    if self.nbt_editor.update_field(field_name, new_value):
+                        # Update the data structure for display
                         if field_name in self.nbt_data:
                             self.nbt_data[field_name] = new_value
-                            print(f"✅ Updated {field_name}: {original_value} → {new_value}")
-                            
-                            # Update window title
-                            self.setWindowTitle("Bedrock NBT/DAT Editor (Generic Parser) - *Modified")
-                            
-                    except Exception as e:
-                        print(f"❌ Error parsing value: {e}")
+                        
+                        # Update window title to show modification
+                        self.setWindowTitle("Bedrock NBT/DAT Editor (Generic Parser) - *Modified")
+                        
+                        print(f"✅ Updated {field_name}: {original_value} → {new_value}")
+                    else:
+                        # Revert the change if update failed
+                        item.setText(2, str(original_value))
+                        print(f"❌ Failed to update {field_name}, reverted to original value")
                             
             except Exception as e:
                 print(f"❌ Error updating value: {e}")
+    
+    def _convert_value_to_type(self, text_value: str, original_value: Any, type_name: str) -> Any:
+        """Convert text value to appropriate type based on original value"""
+        try:
+            # If original value is a number, try to convert text to number
+            if isinstance(original_value, (int, float)):
+                if isinstance(original_value, int):
+                    # Special handling for integer 0/1 as boolean
+                    if original_value in [0, 1] and type_name == 'B':
+                        text_lower = text_value.lower()
+                        if text_lower in ['true', '1', 'yes', 'on']:
+                            return 1
+                        elif text_lower in ['false', '0', 'no', 'off']:
+                            return 0
+                        else:
+                            return original_value  # Keep original if conversion fails
+                    else:
+                        return int(text_value)
+                else:
+                    return float(text_value)
+            
+            # If original value is boolean
+            elif isinstance(original_value, bool):
+                text_lower = text_value.lower()
+                if text_lower in ['true', '1', 'yes', 'on']:
+                    return True
+                elif text_lower in ['false', '0', 'no', 'off']:
+                    return False
+                else:
+                    return original_value  # Keep original if conversion fails
+            
+            # For strings and other types, return as string
+            else:
+                return text_value
+                
+        except (ValueError, TypeError):
+            # If conversion fails, return original value
+            return original_value
     
     def perform_live_search(self):
         """Delegate to search utils"""
         self.search_utils.perform_live_search()
 
-    def export_to_json(self):
-        """Export the current NBT data to a JSON file."""
-        if self.nbt_data is None:
-            QMessageBox.warning(self, "Peringatan", "Tidak ada data NBT untuk diekspor.")
-            return
 
-        file_path, _ = QFileDialog.getSaveFileName(self, "Simpan File JSON", "", "JSON Files (*.json)")
-        if file_path:
-            try:
-                with open(file_path, 'w', encoding='utf-8') as f:
-                    json.dump(self.nbt_data, f, indent=4, ensure_ascii=False)
-                QMessageBox.information(self, "Sukses", f"Data NBT berhasil diekspor ke {file_path}")
-            except Exception as e:
-                QMessageBox.critical(self, "Error", f"Gagal mengekspor data JSON: {e}")
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

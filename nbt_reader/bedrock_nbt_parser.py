@@ -109,21 +109,22 @@ class BedrockNBTParser:
                         nested_field_name = f"{field_name}.{nested_name}"
                         table_entries.extend(self._process_field(nested_field_name, nested_value, level + 1))
                 else:
-                    table_entries.append((field_name, str(actual_value), type_name, level))
+                    # Keep the actual value, don't convert to string
+                    table_entries.append((field_name, actual_value, type_name, level))
             
             elif nbt_type == self.TAG_LIST:
                 # List type - add parent node first, then process list items
                 if isinstance(actual_value, list):
-                    # Add parent list node
-                    parent_value = f"[{len(actual_value)} entries]"
-                    table_entries.append((field_name, parent_value, type_name, level))
+                    # Add parent list node with actual list value
+                    table_entries.append((field_name, actual_value, type_name, level))
                     
                     # Process list items with increased level
                     for i, item in enumerate(actual_value):
                         list_field_name = f"{field_name}[{i}]"
                         table_entries.extend(self._process_field(list_field_name, item, level + 1))
                 else:
-                    table_entries.append((field_name, str(actual_value), type_name, level))
+                    # Keep the actual value, don't convert to string
+                    table_entries.append((field_name, actual_value, type_name, level))
             
             elif nbt_type == self.TAG_BYTE_ARRAY:
                 # Byte array - show as list
@@ -131,7 +132,8 @@ class BedrockNBTParser:
                     formatted_value = f"[{len(actual_value)} bytes]"
                     table_entries.append((field_name, formatted_value, type_name, level))
                 else:
-                    table_entries.append((field_name, str(actual_value), type_name, level))
+                    # Keep the actual value, don't convert to string
+                    table_entries.append((field_name, actual_value, type_name, level))
             
             elif nbt_type == self.TAG_INT_ARRAY:
                 # Int array - show as list
@@ -139,7 +141,8 @@ class BedrockNBTParser:
                     formatted_value = f"[{len(actual_value)} integers]"
                     table_entries.append((field_name, formatted_value, type_name, level))
                 else:
-                    table_entries.append((field_name, str(actual_value), type_name, level))
+                    # Keep the actual value, don't convert to string
+                    table_entries.append((field_name, actual_value, type_name, level))
             
             elif nbt_type == self.TAG_LONG_ARRAY:
                 # Long array - show as list
@@ -147,7 +150,8 @@ class BedrockNBTParser:
                     formatted_value = f"[{len(actual_value)} longs]"
                     table_entries.append((field_name, formatted_value, type_name, level))
                 else:
-                    table_entries.append((field_name, str(actual_value), type_name, level))
+                    # Keep the actual value, don't convert to string
+                    table_entries.append((field_name, actual_value, type_name, level))
             
             else:
                 # Simple types - add directly

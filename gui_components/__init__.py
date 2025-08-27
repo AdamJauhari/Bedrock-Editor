@@ -30,7 +30,7 @@ class GUIComponents:
     get_status_bar_style = StylingComponents.get_status_bar_style
     get_scroll_bar_style = StylingComponents.get_scroll_bar_style
     get_type_indicator_style = StylingComponents.get_type_indicator_style
-    get_type_color_enhanced = StylingComponents.get_type_color_enhanced
+
     
     # Message Box Components
     get_message_box_style = MessageBoxComponents.get_message_box_style
