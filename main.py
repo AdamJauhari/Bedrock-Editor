@@ -166,6 +166,43 @@ class NBTEditorMain(QMainWindow):
         save_button.setStyleSheet(GUIComponents.get_button_style())
         right_panel.addWidget(save_button)
         
+        # Warning notification about Long type issue
+        long_type_warning = QLabel("⚠️")
+        long_type_warning.setStyleSheet("""
+            QLabel {
+                color: #ff9500;
+                font-size: 48px;
+                font-weight: bold;
+                padding: 20px;
+                background-color: rgba(255, 149, 0, 0.1);
+                border: 2px solid rgba(255, 149, 0, 0.3);
+                border-radius: 10px;
+                margin: 10px 0px;
+                text-align: center;
+            }
+        """)
+        long_type_warning.setAlignment(Qt.AlignCenter)
+        right_panel.addWidget(long_type_warning)
+        
+        # Warning text
+        warning_text = QLabel("Key type L (Long) values are currently inaccurate.\nEditing Long values is temporarily disabled\nuntil this issue is resolved.")
+        warning_text.setStyleSheet("""
+            QLabel {
+                color: #ff9500;
+                font-size: 12px;
+                font-weight: bold;
+                padding: 10px;
+                background-color: rgba(255, 149, 0, 0.05);
+                border: 1px solid rgba(255, 149, 0, 0.2);
+                border-radius: 6px;
+                margin: 5px 0px;
+                text-align: center;
+            }
+        """)
+        warning_text.setAlignment(Qt.AlignCenter)
+        warning_text.setWordWrap(True)
+        right_panel.addWidget(warning_text)
+        
         right_panel.addStretch()
         main_layout.addLayout(right_panel, 1)  # 1 = minimum space for buttons
         
