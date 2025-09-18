@@ -39,12 +39,7 @@ A powerful GUI application for editing Minecraft Bedrock Edition NBT/DAT files w
 - **Professional Appearance**: Modern, polished look that enhances the overall user experience
 - **Improved Spacing**: Better column sizing and padding for optimal readability
 
-### ⚠️ Long Type Protection
-- **Visual Warning**: Prominent warning notification about Long type (L) accuracy issues
-- **Editing Protection**: Long type values are temporarily disabled from editing
-- **User Feedback**: Clear messaging when users attempt to edit Long type values
-- **Safety First**: Prevents data corruption from inaccurate Long value editing
-- **Temporary Measure**: Will be re-enabled once Long type parsing accuracy is resolved
+ 
 
 ## Project Structure
 
@@ -135,7 +130,7 @@ The application has been modularized for better maintainability and organization
 3. Confirm the change in the dialog
 4. Use the save button to persist changes
 
-**Note**: Long type (L) values are temporarily disabled from editing due to accuracy issues. A warning notification is displayed in the interface.
+ 
 
 ## Technical Details
 

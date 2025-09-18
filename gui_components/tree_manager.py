@@ -107,11 +107,10 @@ class TreeManager:
                              for child_field, _, _, child_level in structure if child_level > level)
             
             # Make value column editable ONLY for primitive types that don't have children
-            # Temporarily disable editing for Long type (L) due to accuracy issues
-            if type_name not in ['📁', '📄', 'BA', 'IA', 'LA', 'L'] and not has_children:
+            if type_name not in ['📁', '📄', 'BA', 'IA', 'LA'] and not has_children:
                 tree_item.setFlags(tree_item.flags() | Qt.ItemIsEditable)
             else:
-                # Remove editable flag for compound/list types, items with children, or Long type
+                # Remove editable flag for compound/list types or items with children
                 tree_item.setFlags(tree_item.flags() & ~Qt.ItemIsEditable)
                 # Set visual indication that this item is not editable (slightly dimmed)
                 tree_item.setForeground(2, QColor("#888888"))
@@ -187,11 +186,10 @@ class TreeManager:
             has_children = isinstance(value, (dict, list)) and len(value) > 0
             
             # Make value column editable ONLY for primitive types that don't have children
-            # Temporarily disable editing for Long type (L) due to accuracy issues
-            if type_name not in ['📁', '📄', 'L'] and not has_children:
+            if type_name not in ['📁', '📄'] and not has_children:
                 tree_item.setFlags(tree_item.flags() | Qt.ItemIsEditable)
             else:
-                # Remove editable flag for compound/list types, items with children, or Long type
+                # Remove editable flag for compound/list types or items with children
                 tree_item.setFlags(tree_item.flags() & ~Qt.ItemIsEditable)
             
             # Set expandable for compound and list types or items with children
@@ -213,16 +211,8 @@ class TreeManager:
                 # For QTreeWidget, we need to start editing the cell
                 self.main_window.tree.editItem(item, column)
             else:
-                # Get the type of the item
-                item_type = item.text(0)
-                item_name = item.text(1)
-                
-                # Show specific message for Long type
-                if item_type == 'L':
-                    print(f"⚠️ Item '{item_name}' (Long type) cannot be edited - values are currently inaccurate")
-                else:
-                    # Show message that this item cannot be edited
-                    print(f"⚠️ Item '{item_name}' cannot be edited (compound/list type or has children)")
+                # Show message that this item cannot be edited
+                print(f"⚠️ Item '{item.text(1)}' cannot be edited (compound/list type or has children)")
 
     def on_item_changed(self, item, column):
         """Handle perubahan value dengan dialog konfirmasi"""
@@ -242,12 +232,7 @@ class TreeManager:
                 if original_data:
                     field_name, original_value, type_name = original_data
                     
-                    # Prevent editing Long type values due to accuracy issues
-                    if type_name == 'L':
-                        print(f"⚠️ Cannot edit Long type field '{field_name}' - values are currently inaccurate")
-                        # Revert the change
-                        item.setText(2, str(original_value))
-                        return
+                    # Long type editing re-enabled; proceed normally
                     
                     # Get the new value directly from the item
                     new_text = item.text(2)
