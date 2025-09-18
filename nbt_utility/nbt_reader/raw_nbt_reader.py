@@ -71,10 +71,15 @@ class RawNBTReader:
         return value
     
     def read_long(self) -> int:
-        """Membaca 8 bytes (long) - Little Endian untuk Bedrock"""
+        """Membaca 8 bytes (long) - Bedrock uses swapped 32-bit chunks with little endian"""
         if self.position + 8 > len(self.data):
             raise Exception("Unexpected end of data")
-        value = struct.unpack('<q', self.data[self.position:self.position+8])[0]
+        
+        # Read 8 bytes and swap the 4-byte chunks, then interpret as little endian
+        raw_bytes = self.data[self.position:self.position+8]
+        swapped_bytes = raw_bytes[4:8] + raw_bytes[0:4]  # Swap high and low 32-bit parts
+        value = struct.unpack('<q', swapped_bytes)[0]
+        
         self.position += 8
         return value
     
