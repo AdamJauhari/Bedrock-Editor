@@ -2,6 +2,9 @@
 
 A powerful GUI application for editing Minecraft Bedrock Edition NBT/DAT files with a modern, user-friendly interface.
 
+# Download
+https://drive.google.com/file/d/14zpcpQ3SpNn5Na22Aw3IQixR8gvRQH81/view?usp=sharing
+
 ## Features
 
 - **Modern Dark Theme**: Beautiful dark UI with blue accents
