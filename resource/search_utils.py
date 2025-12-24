@@ -27,7 +27,7 @@ class SearchUtils:
             
             self.show_all_items()
             self.search_results = []
-            self.search_status.setText("Siap untuk mencari...")
+            self.search_status.setText("Ready to search...")
             self.search_status.setStyleSheet("""
                 color: #888888;
                 font-size: 12px;
@@ -45,7 +45,7 @@ class SearchUtils:
             return
         
         # Update status saat mengetik
-        self.search_status.setText(f"Mencari '{search_text}'...")
+        self.search_status.setText(f"Searching for '{search_text}'...")
         self.search_status.setStyleSheet("""
             color: #00bfff;
             font-size: 12px;
@@ -117,7 +117,7 @@ class SearchUtils:
             self.tree.scrollToItem(found_items[0])
             
             # Show success status
-            self.search_status.setText(f"✓ Menampilkan {len(found_items)} dari {len(all_items)} item untuk '{search_text}'")
+            self.search_status.setText(f"✓ Showing {len(found_items)} of {len(all_items)} items for '{search_text}'")
             self.search_status.setStyleSheet("""
                 color: #00d084;
                 font-size: 12px;
@@ -134,7 +134,7 @@ class SearchUtils:
             self.tree.window().setWindowTitle(f"{original_title} - Filtered: {len(found_items)}/{len(all_items)} items")
         else:
             # Show no results status
-            self.search_status.setText(f"✗ Tidak ada hasil untuk '{search_text}' - {len(all_items)} item diperiksa")
+            self.search_status.setText(f"✗ No results for '{search_text}' - {len(all_items)} items checked")
             self.search_status.setStyleSheet("""
                 color: #ff0000;
                 font-size: 12px;
@@ -257,7 +257,7 @@ class SearchUtils:
         self.search_input.clear()
         
         # Reset search status
-        self.search_status.setText("Siap untuk mencari...")
+        self.search_status.setText("Ready to search...")
         self.search_status.setStyleSheet("""
             color: #888888;
             font-size: 12px;

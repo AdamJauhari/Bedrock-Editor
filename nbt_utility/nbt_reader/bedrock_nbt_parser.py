@@ -227,7 +227,7 @@ class BedrockNBTParser:
         value_width = 50
         
         # Create header
-        header = f"{'Type':<{type_width}} {'Nama':<{name_width}} {'Value':<{value_width}}"
+        header = f"{'Type':<{type_width}} {'Name':<{name_width}} {'Value':<{value_width}}"
         separator = "-" * len(header)
         
         # Create rows

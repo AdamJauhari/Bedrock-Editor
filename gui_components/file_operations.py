@@ -18,7 +18,7 @@ class FileOperations:
         """Open NBT file manually"""
         file_path, _ = QFileDialog.getOpenFileName(
             self.main_window, 
-            "Buka File NBT/DAT", 
+            "Open NBT/DAT File", 
             "", 
             "NBT/DAT Files (*.nbt *.dat)"
         )
@@ -76,7 +76,7 @@ class FileOperations:
                 msg = QMessageBox(self.main_window)
                 msg.setIcon(QMessageBox.Critical)
                 msg.setWindowTitle("Error")
-                msg.setText(f"Gagal membuka file: {e}")
+                msg.setText(f"Failed to open file: {e}")
                 msg.setStyleSheet(MessageBoxComponents.get_error_message_box_style())
                 msg.exec_()
             finally:
@@ -99,7 +99,7 @@ class FileOperations:
                     msg = QMessageBox()
                     msg.setIcon(QMessageBox.Information)
                     msg.setWindowTitle("Info")
-                    msg.setText("Tidak ada perubahan yang perlu disimpan.")
+                    msg.setText("No changes to save.")
                     msg.setStyleSheet(MessageBoxComponents.get_message_box_style())
                     msg.exec_()
                     return
@@ -112,10 +112,10 @@ class FileOperations:
                     # Success message
                     msg = QMessageBox()
                     msg.setIcon(QMessageBox.Information)
-                    msg.setWindowTitle("Sukses")
-                    msg.setText(f"File berhasil disimpan!\n\nPerubahan yang disimpan:\n" + 
+                    msg.setWindowTitle("Success")
+                    msg.setText(f"File saved successfully!\n\nSaved changes:\n" + 
                               "\n".join([f"• {field}" for field in modified_fields[:10]]) + 
-                              (f"\n...dan {len(modified_fields) - 10} field lainnya" if len(modified_fields) > 10 else ""))
+                              (f"\n...and {len(modified_fields) - 10} other fields" if len(modified_fields) > 10 else ""))
                     msg.setStyleSheet(MessageBoxComponents.get_message_box_style())
                     msg.exec_()
                     
@@ -132,14 +132,14 @@ class FileOperations:
                 msg = QMessageBox(self.main_window)
                 msg.setIcon(QMessageBox.Critical)
                 msg.setWindowTitle("Error")
-                msg.setText(f"Gagal menyimpan file: {e}")
+                msg.setText(f"Failed to save file: {e}")
                 msg.setStyleSheet(MessageBoxComponents.get_error_message_box_style())
                 msg.exec_()
         else:
             msg = QMessageBox()
             msg.setIcon(QMessageBox.Warning)
-            msg.setWindowTitle("Peringatan")
-            msg.setText("Tidak ada file yang terbuka untuk disimpan!")
+            msg.setWindowTitle("Warning")
+            msg.setText("No file open to save!")
             msg.setStyleSheet(MessageBoxComponents.get_warning_message_box_style())
             msg.exec_()
     

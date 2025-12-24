@@ -44,15 +44,15 @@ def run_as_admin():
 def check_admin_privileges():
     """Check and request admin privileges if needed"""
     if not is_admin():
-        print("[!] Program membutuhkan hak akses Administrator untuk mengakses file Minecraft")
-        print("[*] Memulai ulang program dengan hak akses Administrator...")
+        print("[!] Program requires Administrator privileges to access Minecraft files")
+        print("[*] Restarting program with Administrator privileges...")
         
         # Try to elevate privileges
         if run_as_admin():
             return False  # Exit if elevation is needed
         else:
-            print("[!] Gagal mendapatkan hak akses Administrator, menjalankan dalam mode terbatas...")
+            print("[!] Failed to obtain Administrator privileges, running in limited mode...")
             return True  # Continue in limited mode
     else:
-        print("[OK] Program berjalan dengan hak akses Administrator")
+        print("[OK] Program running with Administrator privileges")
         return True

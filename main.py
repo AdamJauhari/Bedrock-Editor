@@ -29,6 +29,16 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QIcon, QColor, QPainter, QFont
 
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
+
 class NBTEditorMain(QMainWindow):
     def __init__(self, admin_mode=False):
         super().__init__()
@@ -38,7 +48,7 @@ class NBTEditorMain(QMainWindow):
         
         self.setWindowTitle("Bedrock NBT/DAT Editor (Generic Parser)")
         self.setGeometry(100, 100, 1200, 800)
-        self.setWindowIcon(QIcon("icon.png"))
+        self.setWindowIcon(QIcon(resource_path("icon.png")))
         self.nbt_file = None
         self.nbt_data = None
         self.nbt_reader = None
@@ -211,7 +221,7 @@ class NBTEditorMain(QMainWindow):
         self.search_utils.perform_live_search()
 
     def enable_achievements(self):
-        """Enable achievements by setting hasBeenLoadedInCreative to 0"""
+        """Enable achievements by setting hasBeenLoadedInCreative to 0 and cheatsEnabled to 0"""
         if not self.nbt_file or self.nbt_data is None:
             QMessageBox.warning(self, "Warning", "Please select a world first.")
             return
@@ -222,25 +232,43 @@ class NBTEditorMain(QMainWindow):
                 self.nbt_editor = self.nbt_editor_class(self.nbt_file)
                 self.nbt_editor.load_file()
             
-            # Check current value
-            current_val = self.nbt_editor.get_field_value("hasBeenLoadedInCreative")
+            # Check current values
+            current_creative = self.nbt_editor.get_field_value("hasBeenLoadedInCreative")
+            current_cheats = self.nbt_editor.get_field_value("cheatsEnabled")
             
-            # Update field
+            changes_made = False
+            
+            # Update hasBeenLoadedInCreative
             if self.nbt_editor.update_field("hasBeenLoadedInCreative", 0):
+                changes_made = True
                 # Update local data structure for UI sync
                 if isinstance(self.nbt_data, dict):
                     self.nbt_data["hasBeenLoadedInCreative"] = 0
                 elif isinstance(self.nbt_data, list):
                     # Handle list of tuples from custom parser
                     for i, entry in enumerate(self.nbt_data):
-                        # entry is (name, value, type, level) or (name, value, type)
                         if entry[0] == "hasBeenLoadedInCreative":
-                            # Create new tuple with updated value
                             new_entry = list(entry)
                             new_entry[1] = 0
                             self.nbt_data[i] = tuple(new_entry)
                             break
-                
+            
+            # Update cheatsEnabled - only if it exists or we can enable it (typically exists in Level.dat)
+            # We'll try to update it regardless, if it doesn't exist update_field might return False or we can check first
+            # But usually it's fine to try update.
+            if self.nbt_editor.update_field("cheatsEnabled", 0):
+                changes_made = True
+                if isinstance(self.nbt_data, dict):
+                    self.nbt_data["cheatsEnabled"] = 0
+                elif isinstance(self.nbt_data, list):
+                     for i, entry in enumerate(self.nbt_data):
+                        if entry[0] == "cheatsEnabled":
+                            new_entry = list(entry)
+                            new_entry[1] = 0
+                            self.nbt_data[i] = tuple(new_entry)
+                            break
+
+            if changes_made:
                 # Update UI
                 self.populate_tree(self.nbt_data)
                 self.setWindowTitle("Bedrock NBT/DAT Editor (Generic Parser) - *Modified")
@@ -248,13 +276,14 @@ class NBTEditorMain(QMainWindow):
                 QMessageBox.information(self, "Success", 
                     "Achievements enabled!\n\n"
                     "Field 'hasBeenLoadedInCreative' set to 0.\n"
+                    "Field 'cheatsEnabled' set to 0.\n"
                     "Don't forget to click Save to apply changes.")
             else:
                 # If update returned False, maybe it was already 0?
-                if current_val == 0:
-                    QMessageBox.information(self, "Info", "Achievements are already enabled.")
+                if current_creative == 0 and current_cheats == 0:
+                    QMessageBox.information(self, "Info", "Achievements are already fully enabled (Creative: 0, Cheats: 0).")
                 else:
-                    QMessageBox.warning(self, "Error", "Failed to update field.")
+                    QMessageBox.warning(self, "Error", "Failed to update one or more fields.")
                     
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to enable achievements: {e}")

@@ -17,19 +17,19 @@ class TreeManager:
     
     def setup_tree(self, tree_widget):
         """Setup tree widget with proper configuration"""
-        tree_widget.setHeaderLabels(["Type", "Nama", "Value"])
+        tree_widget.setHeaderLabels(["Type", "Name", "Value"])
         tree_widget.setAlternatingRowColors(True)
         tree_widget.setStyleSheet(StylingComponents.get_enhanced_tree_style())
         
         # Set column widths with stretch factors for responsive layout
         tree_widget.setColumnWidth(0, 100)  # Type column (fixed width) - wider for enhanced display
-        tree_widget.setColumnWidth(1, 300)  # Nama column (initial width)
+        tree_widget.setColumnWidth(1, 300)  # Name column (initial width)
         tree_widget.setColumnWidth(2, 400)  # Value column (initial width)
         
         # Set stretch factors for responsive columns
         tree_widget.header().setStretchLastSection(True)  # Value column stretches
         tree_widget.header().setSectionResizeMode(0, QHeaderView.Fixed)  # Type fixed
-        tree_widget.header().setSectionResizeMode(1, QHeaderView.Interactive)  # Nama interactive
+        tree_widget.header().setSectionResizeMode(1, QHeaderView.Interactive)  # Name interactive
         tree_widget.header().setSectionResizeMode(2, QHeaderView.Stretch)  # Value stretches
         
         # Set tree properties

@@ -42,9 +42,9 @@ class RawNBTReader:
                 f.seek(8)
                 return f.read()
         except FileNotFoundError:
-            raise FileNotFoundError(f"File tidak ditemukan: {self.file_path}")
+            raise FileNotFoundError(f"File not found: {self.file_path}")
         except Exception as e:
-            raise Exception(f"Error membaca file: {e}")
+            raise Exception(f"Error reading file: {e}")
     
     def read_byte(self) -> int:
         """Membaca 1 byte"""
