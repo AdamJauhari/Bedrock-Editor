@@ -15,7 +15,8 @@ from nbt_utility import BedrockNBTParser, NBTFileEditor
 from resource import SearchUtils
 from gui_components import (
     GUIComponents, EnhancedTypeDelegate, 
-    check_admin_privileges, WorldManager, FileOperations, TreeManager
+    check_admin_privileges, WorldManager, FileOperations, TreeManager,
+    is_admin
 )
 
 # Additional imports needed for the main app
@@ -29,11 +30,11 @@ from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QIcon, QColor, QPainter, QFont
 
 class NBTEditorMain(QMainWindow):
-    def __init__(self):
+    def __init__(self, admin_mode=False):
         super().__init__()
         
-        # Check admin privileges first
-        self.admin_mode = check_admin_privileges()
+        # Store admin privileges status
+        self.admin_mode = admin_mode
         
         self.setWindowTitle("Bedrock NBT/DAT Editor (Generic Parser)")
         self.setGeometry(100, 100, 1200, 800)
@@ -161,10 +162,33 @@ class NBTEditorMain(QMainWindow):
         open_button.setStyleSheet(GUIComponents.get_button_style())
         right_panel.addWidget(open_button)
         
+        
         save_button = QPushButton("Save")
         save_button.clicked.connect(self.file_ops.save_file)
         save_button.setStyleSheet(GUIComponents.get_button_style())
         right_panel.addWidget(save_button)
+        
+        # Spacer
+        right_panel.addSpacing(20)
+        
+        # World Modifiers
+        modifiers_label = QLabel("Quick Actions:")
+        modifiers_label.setStyleSheet("color: #ffffff; margin-bottom: 5px; font-weight: bold; font-size: 14px;")
+        right_panel.addWidget(modifiers_label)
+
+        # Enable Achievements Button
+        self.achievements_btn = QPushButton("Enable Achievements")
+        self.achievements_btn.setToolTip("Sets hasBeenLoadedInCreative to 0 (False)")
+        self.achievements_btn.clicked.connect(self.enable_achievements)
+        self.achievements_btn.setStyleSheet(GUIComponents.get_info_button_style())
+        right_panel.addWidget(self.achievements_btn)
+        
+        # Disable Experiments Button
+        self.experiments_btn = QPushButton("Disable Experiments")
+        self.experiments_btn.setToolTip("Disables all entries in the experiments tag")
+        self.experiments_btn.clicked.connect(self.disable_experiments)
+        self.experiments_btn.setStyleSheet(GUIComponents.get_warning_button_style())
+        right_panel.addWidget(self.experiments_btn)
         
         # Right panel currently only contains action buttons
         
@@ -186,8 +210,151 @@ class NBTEditorMain(QMainWindow):
         """Delegate to search utils"""
         self.search_utils.perform_live_search()
 
+    def enable_achievements(self):
+        """Enable achievements by setting hasBeenLoadedInCreative to 0"""
+        if not self.nbt_file or self.nbt_data is None:
+            QMessageBox.warning(self, "Warning", "Please select a world first.")
+            return
+
+        try:
+            # Initialize editor if needed
+            if self.nbt_editor is None:
+                self.nbt_editor = self.nbt_editor_class(self.nbt_file)
+                self.nbt_editor.load_file()
+            
+            # Check current value
+            current_val = self.nbt_editor.get_field_value("hasBeenLoadedInCreative")
+            
+            # Update field
+            if self.nbt_editor.update_field("hasBeenLoadedInCreative", 0):
+                # Update local data structure for UI sync
+                if isinstance(self.nbt_data, dict):
+                    self.nbt_data["hasBeenLoadedInCreative"] = 0
+                elif isinstance(self.nbt_data, list):
+                    # Handle list of tuples from custom parser
+                    for i, entry in enumerate(self.nbt_data):
+                        # entry is (name, value, type, level) or (name, value, type)
+                        if entry[0] == "hasBeenLoadedInCreative":
+                            # Create new tuple with updated value
+                            new_entry = list(entry)
+                            new_entry[1] = 0
+                            self.nbt_data[i] = tuple(new_entry)
+                            break
+                
+                # Update UI
+                self.populate_tree(self.nbt_data)
+                self.setWindowTitle("Bedrock NBT/DAT Editor (Generic Parser) - *Modified")
+                
+                QMessageBox.information(self, "Success", 
+                    "Achievements enabled!\n\n"
+                    "Field 'hasBeenLoadedInCreative' set to 0.\n"
+                    "Don't forget to click Save to apply changes.")
+            else:
+                # If update returned False, maybe it was already 0?
+                if current_val == 0:
+                    QMessageBox.information(self, "Info", "Achievements are already enabled.")
+                else:
+                    QMessageBox.warning(self, "Error", "Failed to update field.")
+                    
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to enable achievements: {e}")
+
+    def disable_experiments(self):
+        """Disable all experiments"""
+        if not self.nbt_file or self.nbt_data is None:
+            QMessageBox.warning(self, "Warning", "Please select a world first.")
+            return
+
+        try:
+            # Initialize editor if needed
+            if self.nbt_editor is None:
+                self.nbt_editor = self.nbt_editor_class(self.nbt_file)
+                self.nbt_editor.load_file()
+                
+            # Use editor to get experiments dict safely
+            experiments = self.nbt_editor.get_field_value("experiments")
+            
+            if not experiments or not isinstance(experiments, dict):
+                QMessageBox.information(self, "Info", "No experiments tag found in this world.")
+                return
+
+            count = 0
+            mod_made = False
+            
+            # Iterate and disable
+            for key in list(experiments.keys()):
+                field_path = f"experiments.{key}"
+                # Set to 0 (False)
+                if self.nbt_editor.update_field(field_path, 0):
+                    experiments[key] = 0
+                    mod_made = True
+                    count += 1
+            
+            if mod_made:
+                # Update local data structure for UI sync
+                if isinstance(self.nbt_data, dict):
+                    self.nbt_data["experiments"] = experiments
+                elif isinstance(self.nbt_data, list):
+                    # Handle list of tuples from custom parser
+                    # We need to update sub-entries with names starting with "experiments."
+                    for i, entry in enumerate(self.nbt_data):
+                        name = entry[0]
+                        if name.startswith("experiments."):
+                            # Verify if this is one of the keys we updated
+                            key = name.split(".")[-1]
+                            if key in experiments:
+                                # Create new tuple with updated value
+                                new_entry = list(entry)
+                                new_entry[1] = 0
+                                self.nbt_data[i] = tuple(new_entry)
+                
+                self.populate_tree(self.nbt_data)
+                self.setWindowTitle("Bedrock NBT/DAT Editor (Generic Parser) - *Modified")
+                
+                QMessageBox.information(self, "Success", 
+                    f"Disabled {count} experiments.\n\n"
+                    "Don't forget to click Save to apply changes.")
+            else:
+                QMessageBox.information(self, "Info", "All experiments are already disabled.")
+
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to disable experiments: {e}")
+            import traceback
+            traceback.print_exc()
+
 if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    window = NBTEditorMain()
-    window.show()
-    sys.exit(app.exec_())
+    # Check admin privileges before starting the app
+    # This prevents UI from being created if we need to restart as admin
+    is_admin_mode = check_admin_privileges()
+    
+    # Only if we didn't restart (check_admin_privileges returns True if already admin/limited mode
+    # or False if it restarted the process)
+    # Actually check_admin_privileges returns:
+    # - True: Already admin OR failed to elevate (limited mode)
+    # - False: Successfully triggered restart
+    
+    # But wait, check_admin_privileges returns False if it successfully triggered run_as_admin which returns success code > 32
+    # So if it returns False, we should EXIT this process.
+    
+    # Let's fix usage:
+    # If check_admin_privileges() returns False (meaning elevation triggered), we exit.
+    
+    # Re-reading logic in admin_utils.py:
+    # check_admin_privileges calls run_as_admin
+    # if run_as_admin returns True (success restart), check_admin_privileges returns False.
+    # So if False, we exit.
+    
+    # However, in my new admin_utils.py:
+    # run_as_admin returns True if ShellExecute > 32 (success)
+    
+    if is_admin_mode:
+        app = QApplication(sys.argv)
+        # Re-check actual admin status for the UI flag, since check_admin_privileges returns True for both Admin and Limited
+        real_admin_status = is_admin()
+        
+        window = NBTEditorMain(admin_mode=real_admin_status)
+        window.show()
+        sys.exit(app.exec_())
+    else:
+        # Elevation triggered, exit this process
+        sys.exit(0)

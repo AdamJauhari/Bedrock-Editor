@@ -16,9 +16,9 @@ for pkg in ["PyQt5", "nbtlib"]:
 try:
     from amulet_nbt import load as amulet_load
     AMULET_AVAILABLE = True
-    print("✅ amulet-nbt available for enhanced Bedrock parsing")
+    print("[OK] amulet-nbt available for enhanced Bedrock parsing")
 except ImportError:
-    print("ℹ️ amulet-nbt not available, will use nbtlib for parsing")
+    print("[INFO] amulet-nbt not available, will use nbtlib for parsing")
     AMULET_AVAILABLE = False
     amulet_load = None
 
